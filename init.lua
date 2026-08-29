@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.3.2
+-- AZOTHUI v1.4.0
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.3.4"
+AzothUI.Version = "1.4.0"
 
 --==================================================
 -- SERVICES
@@ -2375,110 +2375,299 @@ function WindowMethods:Close()
 end
 
 --==================================================
--- NOTIFICATION
+-- NOTIFICATION SYSTEM v1.4.0
 --==================================================
 
-local function CreateNotification(title, content, duration)
-    duration = tonumber(duration) or 3
+local NotificationTypes = {
+    Info = {
+        Accent = function()
+            return Config.Theme.Red
+        end,
+        Icon = "i",
+    },
+
+    Success = {
+        Accent = function()
+            return Color3.fromRGB(60, 190, 105)
+        end,
+        Icon = "✓",
+    },
+
+    Warning = {
+        Accent = function()
+            return Color3.fromRGB(235, 170, 55)
+        end,
+        Icon = "!",
+    },
+
+    Error = {
+        Accent = function()
+            return Config.Theme.Red
+        end,
+        Icon = "×",
+    },
+}
+
+local function normalizeNotificationType(value)
+    value = tostring(value or "Info")
+
+    for name in pairs(NotificationTypes) do
+        if string.lower(name) == string.lower(value) then
+            return name
+        end
+    end
+
+    return "Info"
+end
+
+local function getNotificationContainer()
+    if not ScreenGui or not ScreenGui.Parent then
+        return nil
+    end
 
     local container = ScreenGui:FindFirstChild("Notifications")
 
-    if not container then
-        container = New("Frame", {
-            Name = "Notifications",
-            Size = UDim2.new(0, 300, 1, -20),
-            Position = UDim2.new(1, -315, 0, 10),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            ZIndex = 500,
-        }, ScreenGui)
-
-        New("UIListLayout", {
-            Padding = UDim.new(0, 8),
-            HorizontalAlignment = Enum.HorizontalAlignment.Right,
-            VerticalAlignment = Enum.VerticalAlignment.Top,
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, container)
+    if container then
+        return container
     end
 
+    container = New("Frame", {
+        Name = "Notifications",
+        AnchorPoint = Vector2.new(1, 0),
+        Size = UDim2.fromOffset(330, 1),
+        Position = UDim2.new(1, -14, 0, 14),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 500,
+    }, ScreenGui)
+
+    New("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        VerticalAlignment = Enum.VerticalAlignment.Top,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, container)
+
+    return container
+end
+
+local function CreateNotification(data)
+    data = data or {}
+
+    local container = getNotificationContainer()
+    if not container then
+        return nil
+    end
+
+    local title = tostring(data.Title or "AzothUI")
+    local content = tostring(data.Content or "")
+    local duration = math.max(0, tonumber(data.Duration) or 3)
+    local typeName = normalizeNotificationType(data.Type)
+    local typeInfo = NotificationTypes[typeName]
+
     local notification = New("Frame", {
-        Size = UDim2.fromOffset(285, 70),
+        Size = UDim2.fromOffset(315, 78),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
+        BackgroundTransparency = 0,
+        LayoutOrder = os.clock() * 1000,
         ZIndex = 501,
     }, container)
 
     Corner(notification, 10)
-    Border(notification)
+    Border(notification, Config.Theme.Border, 1, 0.05)
 
     local accent = New("Frame", {
         Size = UDim2.new(0, 3, 1, -18),
         Position = UDim2.fromOffset(0, 9),
-        BackgroundColor3 = Config.Theme.Red,
+        BackgroundColor3 = typeInfo.Accent(),
         BorderSizePixel = 0,
         ZIndex = 502,
     }, notification)
 
     Corner(accent, 2)
 
+    local icon = New("TextLabel", {
+        Size = UDim2.fromOffset(28, 28),
+        Position = UDim2.fromOffset(12, 11),
+        BackgroundColor3 = Config.Theme.Surface2,
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        Text = data.Icon ~= nil and tostring(data.Icon) or typeInfo.Icon,
+        TextColor3 = typeInfo.Accent(),
+        TextSize = 13,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 502,
+    }, notification)
+
+    Corner(icon, 8)
+
     local titleLabel = Text(
         notification,
-        title or "AzothUI",
+        title,
         12,
         Config.Theme.Text,
         Enum.Font.GothamBold
     )
 
-    titleLabel.Position = UDim2.fromOffset(15, 8)
-    titleLabel.Size = UDim2.new(1, -25, 0, 22)
+    titleLabel.Position = UDim2.fromOffset(49, 8)
+    titleLabel.Size = UDim2.new(1, -88, 0, 22)
 
     local contentLabel = Text(
         notification,
-        content or "",
+        content,
         10,
         Config.Theme.SubText
     )
 
-    contentLabel.Position = UDim2.fromOffset(15, 31)
-    contentLabel.Size = UDim2.new(1, -25, 0, 28)
+    contentLabel.Position = UDim2.fromOffset(49, 30)
+    contentLabel.Size = UDim2.new(1, -64, 0, 30)
     contentLabel.TextWrapped = true
+    contentLabel.TextYAlignment = Enum.TextYAlignment.Top
 
-    notification.Position = UDim2.new(1, 25, 0, 0)
+    local closeButton = New("TextButton", {
+        Size = UDim2.fromOffset(24, 24),
+        Position = UDim2.new(1, -31, 0, 8),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "×",
+        TextColor3 = Config.Theme.Muted,
+        TextSize = 14,
+        Font = Enum.Font.GothamMedium,
+        ZIndex = 503,
+    }, notification)
 
-    Tween(notification, 0.2, {
-        Position = UDim2.new(0, 0, 0, 0)
-    })
-
-    task.delay(duration, function()
-        if notification and notification.Parent then
-            local tween = Tween(notification, 0.2, {
-                Position = UDim2.new(1, 25, 0, 0)
-            })
-
-            tween.Completed:Connect(function()
-                if notification then
-                    notification:Destroy()
-                end
-            end)
-        end
+    closeButton.MouseEnter:Connect(function()
+        Tween(closeButton, 0.1, {
+            TextColor3 = Config.Theme.Text,
+        })
     end)
 
-    return notification
+    closeButton.MouseLeave:Connect(function()
+        Tween(closeButton, 0.1, {
+            TextColor3 = Config.Theme.Muted,
+        })
+    end)
+
+    local progress = New("Frame", {
+        Size = UDim2.new(1, -24, 0, 2),
+        Position = UDim2.new(0, 12, 1, -7),
+        BackgroundColor3 = typeInfo.Accent(),
+        BorderSizePixel = 0,
+        ZIndex = 503,
+    }, notification)
+
+    Corner(progress, 1)
+
+    local progressFill = New("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = typeInfo.Accent(),
+        BorderSizePixel = 0,
+        ZIndex = 504,
+    }, progress)
+
+    Corner(progressFill, 1)
+
+    local state = {
+        Closed = false,
+    }
+
+    local result = {}
+
+    function result:Close()
+        if state.Closed then
+            return
+        end
+
+        state.Closed = true
+
+        local tween = Tween(notification, 0.18, {
+            Position = UDim2.new(1, 30, notification.Position.Y.Scale, notification.Position.Y.Offset),
+            BackgroundTransparency = 1,
+        })
+
+        Tween(accent, 0.18, {BackgroundTransparency = 1})
+        Tween(icon, 0.18, {BackgroundTransparency = 1, TextTransparency = 1})
+        Tween(titleLabel, 0.18, {TextTransparency = 1})
+        Tween(contentLabel, 0.18, {TextTransparency = 1})
+        Tween(closeButton, 0.18, {TextTransparency = 1})
+        Tween(progress, 0.18, {BackgroundTransparency = 1})
+        Tween(progressFill, 0.18, {BackgroundTransparency = 1})
+
+        tween.Completed:Connect(function()
+            if notification then
+                notification:Destroy()
+            end
+        end)
+    end
+
+    function result:SetTitle(value)
+        if not state.Closed then
+            titleLabel.Text = tostring(value or "")
+        end
+    end
+
+    function result:SetContent(value)
+        if not state.Closed then
+            contentLabel.Text = tostring(value or "")
+        end
+    end
+
+    function result:SetType(value)
+        if state.Closed then
+            return
+        end
+
+        local newType = normalizeNotificationType(value)
+        local newInfo = NotificationTypes[newType]
+        local newAccent = newInfo.Accent()
+
+        accent.BackgroundColor3 = newAccent
+        icon.Text = newInfo.Icon
+        icon.TextColor3 = newAccent
+        progress.BackgroundColor3 = newAccent
+        progressFill.BackgroundColor3 = newAccent
+    end
+
+    closeButton.MouseButton1Click:Connect(function()
+        result:Close()
+    end)
+
+    notification.Position = UDim2.new(1, 30, 0, 0)
+
+    Tween(notification, 0.2, {
+        Position = UDim2.new(0, 0, 0, 0),
+    })
+
+    if duration > 0 then
+        Tween(progressFill, duration, {
+            Size = UDim2.fromScale(0, 1),
+        })
+
+        task.delay(duration, function()
+            result:Close()
+        end)
+    end
+
+    if type(data.Callback) == "function" then
+        task.spawn(data.Callback, result)
+    end
+
+    return result
 end
 
 function AzothUI:Notify(data)
-    data = data or {}
-
-    return CreateNotification(
-        data.Title or "AzothUI",
-        data.Content or "",
-        data.Duration or 3
-    )
+    return CreateNotification(data or {})
 end
 
 --==================================================
 -- CREATE WINDOW
 --==================================================
+
 
 --==================================================
 -- CREATE WINDOW
