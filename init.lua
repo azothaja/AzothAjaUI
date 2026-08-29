@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.1.1
+-- AZOTHUI v1.2.0
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.1.1"
+AzothUI.Version = "1.2.0"
 
 --==================================================
 -- SERVICES
@@ -303,6 +303,54 @@ function TabMethods:AddSection(title)
     return label
 end
 
+function TabMethods:AddSeparator()
+    local separator = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 1),
+        BackgroundColor3 = Config.Theme.Border,
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0,
+        LayoutOrder = self.Order,
+    }, self.Content)
+
+    self.Order += 1
+    return separator
+end
+
+function TabMethods:AddLink(data)
+    data = data or {}
+
+    local item = New("TextButton", {
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = data.Title or "Link",
+        TextColor3 = Config.Theme.RedHover,
+        TextSize = 12,
+        Font = Enum.Font.GothamMedium,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        LayoutOrder = self.Order,
+    }, self.Content)
+
+    self.Order += 1
+
+    item.MouseEnter:Connect(function()
+        item.TextColor3 = Config.Theme.Text
+    end)
+
+    item.MouseLeave:Connect(function()
+        item.TextColor3 = Config.Theme.RedHover
+    end)
+
+    item.MouseButton1Click:Connect(function()
+        if type(data.Callback) == "function" then
+            task.spawn(data.Callback)
+        end
+    end)
+
+    return item
+end
+
 function TabMethods:AddButton(data)
     data = data or {}
 
@@ -365,6 +413,22 @@ function TabMethods:AddButton(data)
         Tween(button, 0.12, {
             BackgroundColor3 = Config.Theme.Surface
         })
+    end)
+
+    button.MouseEnter:Connect(function()
+        if self.ActiveTab ~= tab then
+            Tween(button, 0.12, {
+                BackgroundColor3 = Config.Theme.Surface
+            })
+        end
+    end)
+
+    button.MouseLeave:Connect(function()
+        if self.ActiveTab ~= tab then
+            Tween(button, 0.12, {
+                BackgroundColor3 = Config.Theme.Sidebar
+            })
+        end
     end)
 
     button.MouseButton1Click:Connect(function()
@@ -1250,6 +1314,56 @@ function TabMethods:AddMultiDropdown(data)
     }
 end
 
+function TabMethods:SetTitle(value)
+    if self.Label then
+        self.Label.Text = tostring(value or "Tab")
+    end
+end
+
+function TabMethods:SetIcon(value)
+    if self.Icon then
+        self.Icon.Text = tostring(value or "")
+    end
+end
+
+function TabMethods:SetVisible(value)
+    if self.Button then
+        self.Button.Visible = value == true
+    end
+end
+
+function TabMethods:Select()
+    if self.Window then
+        self.Window:SelectTab(self)
+    end
+end
+
+function TabMethods:Destroy()
+    if self.Destroyed then
+        return
+    end
+
+    self.Destroyed = true
+
+    for i, tab in ipairs(self.Window.Tabs) do
+        if tab == self then
+            table.remove(self.Window.Tabs, i)
+            break
+        end
+    end
+
+    if self.Button then self.Button:Destroy() end
+    if self.Content then self.Content:Destroy() end
+
+    if self.Window.ActiveTab == self then
+        local nextTab = self.Window.Tabs[1]
+        self.Window.ActiveTab = nil
+        if nextTab then
+            self.Window:SelectTab(nextTab)
+        end
+    end
+end
+
 --==================================================
 -- WINDOW METHODS
 --==================================================
@@ -1335,9 +1449,11 @@ function WindowMethods:AddTab(data)
         Window = self,
         Button = button,
         Accent = accent,
+        Icon = iconLabel,
         Label = nameLabel,
         Content = content,
         Order = 1,
+        Destroyed = false,
     }, TabMethods)
 
     table.insert(self.Tabs, tab)
@@ -1457,11 +1573,19 @@ end
 function WindowMethods:Minimize()
     self.Main.Visible = false
     self.Mini.Visible = true
+
+    if self.Callbacks and type(self.Callbacks.OnMinimize) == "function" then
+        task.spawn(self.Callbacks.OnMinimize, self)
+    end
 end
 
 function WindowMethods:Maximize()
     self.Main.Visible = true
     self.Mini.Visible = false
+
+    if self.Callbacks and type(self.Callbacks.OnMaximize) == "function" then
+        task.spawn(self.Callbacks.OnMaximize, self)
+    end
 end
 
 function WindowMethods:Close()
@@ -1470,6 +1594,10 @@ function WindowMethods:Close()
     end
 
     self.Destroyed = true
+
+    if self.Callbacks and type(self.Callbacks.OnClose) == "function" then
+        task.spawn(self.Callbacks.OnClose, self)
+    end
 
     if self.Grip then
         self.Grip:Destroy()
@@ -1743,10 +1871,17 @@ function AzothUI:CreateWindow(data)
     }, sidebarBg)
 
     -- 4. Container asli untuk isi menu (dibuat transparan)
-    local sidebar = New("Frame", {
+    local sidebar = New("ScrollingFrame", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Config.Theme.Red,
+        ScrollBarImageTransparency = 0.25,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        CanvasSize = UDim2.new(),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        Active = true,
         ZIndex = 15,
     }, sidebarBg)
 
@@ -1832,6 +1967,11 @@ function AzothUI:CreateWindow(data)
         ActiveTab = nil,
         Destroyed = false,
         Connections = {},
+        Callbacks = {
+            OnMinimize = data.OnMinimize,
+            OnMaximize = data.OnMaximize,
+            OnClose = data.OnClose,
+        },
     }, WindowMethods)
 
     --==================================================
