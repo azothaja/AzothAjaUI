@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.3.3
+-- AZOTHUI v1.3.2
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.3.3"
+AzothUI.Version = "1.3.4"
 
 --==================================================
 -- SERVICES
@@ -46,7 +46,7 @@ local Config = {
         MaxWidth = 1200,
         MaxHeight = 900,
         Radius = 14,
-        HeaderHeight = 64,
+        HeaderHeight = 54,
         SidebarWidth = 205,
     },
 
@@ -2537,7 +2537,7 @@ function AzothUI:CreateWindow(data)
     local title = Text(
         header,
         data.Title or "AZOTH LOADER",
-        17,
+        16,
         Config.Theme.Text,
         Enum.Font.GothamBold
     )
@@ -2556,34 +2556,34 @@ function AzothUI:CreateWindow(data)
     version.Size = UDim2.fromOffset(65, Config.Window.HeaderHeight)
 
     local minimize = New("TextButton", {
-        Size = UDim2.fromOffset(38, 38),
-        Position = UDim2.new(1, -92, 0.5, -19),
+        Size = UDim2.fromOffset(32, 32),
+        Position = UDim2.new(1, -80, 0.5, -16),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Text = "—",
         TextColor3 = Config.Theme.Text,
-        TextSize = 20,
+        TextSize = 17,
         Font = Enum.Font.GothamMedium,
         ZIndex = 20,
     }, header)
 
-    Corner(minimize, 9)
+    Corner(minimize, 8)
 
     local close = New("TextButton", {
-        Size = UDim2.fromOffset(38, 38),
-        Position = UDim2.new(1, -48, 0.5, -19),
+        Size = UDim2.fromOffset(32, 32),
+        Position = UDim2.new(1, -42, 0.5, -16),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Text = "×",
         TextColor3 = Config.Theme.Text,
-        TextSize = 18,
+        TextSize = 16,
         Font = Enum.Font.GothamMedium,
         ZIndex = 20,
     }, header)
 
-    Corner(close, 9)
+    Corner(close, 8)
 
     local divider = New("Frame", {
         Size = UDim2.new(1, 0, 0, 1),
