@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.3.2
+-- AZOTHUI v1.3.3
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.3.2"
+AzothUI.Version = "1.3.3"
 
 --==================================================
 -- SERVICES
@@ -1798,6 +1798,63 @@ function WindowMethods:AddTab(data)
 end
 
 --==================================================
+-- HOME TAB
+--==================================================
+
+function WindowMethods:CreateHomeTab(data)
+    if self.HomeTab and not self.HomeTab.Destroyed then
+        return self.HomeTab
+    end
+
+    data = data or {}
+
+    local tab = self:AddTab({
+        Title = data.Title or "Home",
+        Icon = data.Icon or "◆",
+    })
+
+    tab.IsHomeTab = true
+
+    tab:AddSection(data.SectionTitle or "WELCOME")
+
+    tab:AddParagraph({
+        Title = data.WelcomeTitle or ("Welcome to " .. AzothUI.Name),
+        Content = data.WelcomeText
+            or "A lightweight and compatibility-focused Roblox UI framework. Use the menu on the left to get started.",
+    })
+
+    tab:AddSection(data.InfoSectionTitle or "INFORMATION")
+
+    tab:AddParagraph({
+        Title = "Version",
+        Content = tostring(AzothUI.Version),
+    })
+
+    tab:AddParagraph({
+        Title = "Current Theme",
+        Content = tostring(AzothUI.Theme),
+    })
+
+    tab:AddParagraph({
+        Title = data.StatusTitle or "Status",
+        Content = data.StatusText or "UI loaded successfully and ready to use.",
+    })
+
+    tab:AddSection(data.HelpSectionTitle or "QUICK GUIDE")
+
+    tab:AddLabel({
+        Text = data.GuideText
+            or "• Home — overview and information\n• Main — your controls and features\n• Theme — change the UI appearance",
+        TextSize = 11,
+        Height = 58,
+        Wrapped = true,
+    })
+
+    self.HomeTab = tab
+    return tab
+end
+
+--==================================================
 -- THEME TAB
 --==================================================
 
@@ -2880,8 +2937,14 @@ function AzothUI:CreateWindow(data)
         end),
     }
 
-    -- Create Theme after the user's normal tabs so it participates in the
-    -- same selection system without changing which tab opens by default.
+    -- Home is created first so a fresh execution never opens to an empty
+    -- content area. It becomes the initial active tab automatically.
+    if data.HomeTab ~= false then
+        window:CreateHomeTab(data.Home or {})
+    end
+
+    -- Create Theme after Home and the user's normal tabs so it participates
+    -- in the same selection system. Home remains the default tab.
     if data.ThemeTab ~= false then
         window:CreateThemeTab()
     end
