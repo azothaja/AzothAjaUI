@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.4.0
+-- AZOTHUI v1.4.1
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.4.0"
+AzothUI.Version = "1.4.1"
 
 --==================================================
 -- SERVICES
@@ -56,6 +56,12 @@ local Config = {
 Config.ThemeName = "Red"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
+
+-- v1.4.1:
+-- * Fixed AddButton description setter scope.
+-- * Fixed AddButton hover color conflict/undefined tab reference.
+-- * Fixed SetSidebarVisible() to include the sidebar background.
+-- * Fixed SetVisible(false) so the mini logo is also hidden.
 
 --==================================================
 -- THEME / CONFIG MANAGER
@@ -658,8 +664,12 @@ function TabMethods:AddButton(data)
     title.Position = UDim2.fromOffset(15, data.Description and 4 or 0)
     title.Size = UDim2.new(1, -55, 0, data.Description and 25 or 46)
 
+    -- Keep this outside the conditional so the returned control can
+    -- update the description later through SetDescription().
+    local description
+
     if data.Description then
-        local description = Text(
+        description = Text(
             button,
             data.Description,
             10,
@@ -682,6 +692,8 @@ function TabMethods:AddButton(data)
     arrow.Size = UDim2.fromOffset(25, button.Size.Y.Offset)
     arrow.TextXAlignment = Enum.TextXAlignment.Center
 
+    -- Single hover pair. The old v1.4.0 implementation had a second
+    -- pair referencing an undefined `tab`, causing conflicting colors.
     button.MouseEnter:Connect(function()
         Tween(button, 0.12, {
             BackgroundColor3 = Config.Theme.Surface2
@@ -692,22 +704,6 @@ function TabMethods:AddButton(data)
         Tween(button, 0.12, {
             BackgroundColor3 = Config.Theme.Surface
         })
-    end)
-
-    button.MouseEnter:Connect(function()
-        if self.ActiveTab ~= tab then
-            Tween(button, 0.12, {
-                BackgroundColor3 = Config.Theme.Surface
-            })
-        end
-    end)
-
-    button.MouseLeave:Connect(function()
-        if self.ActiveTab ~= tab then
-            Tween(button, 0.12, {
-                BackgroundColor3 = Config.Theme.Sidebar
-            })
-        end
     end)
 
     button.MouseButton1Click:Connect(function()
@@ -2274,8 +2270,12 @@ end
 
 function WindowMethods:SetVisible(value)
     value = value == true
-    self.Main.Visible = value
+
     if value then
+        self.Main.Visible = true
+        self.Mini.Visible = false
+    else
+        self.Main.Visible = false
         self.Mini.Visible = false
     end
 end
@@ -2285,8 +2285,14 @@ function WindowMethods:GetActiveTab()
 end
 
 function WindowMethods:SetSidebarVisible(value)
+    value = value == true
+
     if self.Sidebar then
-        self.Sidebar.Visible = value == true
+        self.Sidebar.Visible = value
+    end
+
+    if self.SidebarBackground then
+        self.SidebarBackground.Visible = value
     end
 end
 
@@ -2375,7 +2381,7 @@ function WindowMethods:Close()
 end
 
 --==================================================
--- NOTIFICATION SYSTEM v1.4.0
+-- NOTIFICATION SYSTEM v1.4.1
 --==================================================
 
 local NotificationTypes = {
@@ -2909,6 +2915,7 @@ function AzothUI:CreateWindow(data)
         Main = main,
         Header = header,
         Sidebar = sidebar,
+        SidebarBackground = sidebarBg,
         ContentArea = contentArea,
         Mini = mini,
         Title = title,
