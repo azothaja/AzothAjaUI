@@ -910,29 +910,28 @@ function WindowMethods:AddTab(data)
 
     table.insert(self.Tabs, tab)
 
-    button.MouseButton1Click:Connect(function()
-        for _, other in ipairs(self.Tabs) do
-            other.Content.Visible = false
-            other.Accent.Visible = false
-            other.Button.BackgroundColor3 = Config.Theme.Sidebar
-            other.Label.TextColor3 = Config.Theme.SubText
-        end
-
-        content.Visible = true
-        accent.Visible = true
-        button.BackgroundColor3 = Config.Theme.Surface2
-        nameLabel.TextColor3 = Config.Theme.Text
-
-        self.ActiveTab = tab
-    end)
-
-    if #self.Tabs == 1 then
-        content.Visible = true
-        accent.Visible = true
-        button.BackgroundColor3 = Config.Theme.Surface2
-        nameLabel.TextColor3 = Config.Theme.Text
-        self.ActiveTab = tab
+button.MouseButton1Click:Connect(function()
+    for _, other in ipairs(self.Tabs) do
+        other.Content.Visible = false
+        other.Accent.Visible = false
+        other.Button.BackgroundColor3 = Config.Theme.Sidebar
+        other.Label.TextColor3 = Config.Theme.SubText
     end
+
+    content.Visible = true
+    accent.Visible = true
+    button.BackgroundColor3 = Config.Theme.Surface2
+    nameLabel.TextColor3 = Config.Theme.Text
+    self.ActiveTab = tab
+end)
+
+if #self.Tabs == 1 then
+    content.Visible = true
+    accent.Visible = true
+    button.BackgroundColor3 = Config.Theme.Surface2
+    nameLabel.TextColor3 = Config.Theme.Text
+    self.ActiveTab = tab
+end
 
     return tab
 end
@@ -988,10 +987,8 @@ function WindowMethods:Close()
 
     self.Destroyed = true
 
-    if self.Grip then
-        self.Grip:Destroy()
-    end
-
+    -- Grip is a descendant of Main now, so it's destroyed
+    -- automatically with it - no separate cleanup needed.
     if self.Mini then
         self.Mini:Destroy()
     end
@@ -1302,38 +1299,81 @@ function AzothUI:CreateWindow(data)
     MakeDraggable(mini, mini)
 
     --==================================================
-    -- EXTERNAL RESIZE GRIP
+    -- RESIZE HANDLE (bottom-right corner)
     --==================================================
+    -- This is a CHILD of `inside` (the rounded, clipped surface), not a
+    -- separate ScreenGui sibling positioned by hand. The old version
+    -- synced its position from Main.AbsolutePosition/AbsoluteSize on
+    -- every Position/Size/Visible change - that manual sync could lag
+    -- a frame behind during drags/resizes, which is exactly what made
+    -- the corner look like it had overlapping straight edges instead of
+    -- a clean curve. Anchoring the handle with AnchorPoint(1,1) lets
+    -- Roblox's own layout engine keep it glued to the corner
+    -- automatically, and insetting it a few pixels keeps every dot
+    -- inside the already-rounded corner instead of trying to hug the
+    -- curve from outside.
 
-    local grip = New("Frame", {
+    local gripInset = 8
+
+    local grip = New("TextButton", {
         Name = "ResizeGrip",
-        Size = UDim2.fromOffset(40, 40),
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -gripInset, 1, -gripInset),
+        Size = UDim2.fromOffset(20, 20),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "",
         Active = true,
+        Selectable = false,
         ZIndex = 300,
-    }, ScreenGui)
+    }, inside)
 
     window.Grip = grip
 
-    -- Curved-looking external grip.
-    for i = 1, 4 do
-        local segment = New("Frame", {
-            Size = UDim2.fromOffset(9, 3),
+    local gripDots = {}
+
+    local function addGripDot(dx, dy)
+        local dot = New("Frame", {
+            AnchorPoint = Vector2.new(1, 1),
+            Position = UDim2.new(1, -dx, 1, -dy),
+            Size = UDim2.fromOffset(3, 3),
             BackgroundColor3 = Config.Theme.SubText,
             BackgroundTransparency = 0.42,
             BorderSizePixel = 0,
-            Rotation = -45,
+            Active = false,
             ZIndex = 301,
         }, grip)
 
-        Corner(segment, 2)
+        Corner(dot, 2)
 
-        segment.Position = UDim2.fromOffset(
-            7 + i * 7,
-            32 - i * 7
-        )
+        table.insert(gripDots, dot)
     end
+
+    -- Classic triangular "resize dots" pattern, fully inside the
+    -- handle's own bounds so nothing pokes past the rounded corner.
+    addGripDot(4, 4)
+    addGripDot(4, 11)
+    addGripDot(11, 4)
+    addGripDot(4, 18)
+    addGripDot(11, 11)
+    addGripDot(18, 4)
+
+    grip.MouseEnter:Connect(function()
+        for _, dot in ipairs(gripDots) do
+            Tween(dot, 0.12, {
+                BackgroundTransparency = 0.1
+            })
+        end
+    end)
+
+    grip.MouseLeave:Connect(function()
+        for _, dot in ipairs(gripDots) do
+            Tween(dot, 0.15, {
+                BackgroundTransparency = 0.42
+            })
+        end
+    end)
 
     local resizing = false
     local resizeStart
@@ -1384,29 +1424,6 @@ function AzothUI:CreateWindow(data)
             )
         )
     end)
-
-    local function updateGrip()
-        if not main.Parent or not main.Visible then
-            grip.Visible = false
-            return
-        end
-
-        grip.Visible = true
-
-        local position = main.AbsolutePosition
-        local size = main.AbsoluteSize
-
-        grip.Position = UDim2.fromOffset(
-            position.X + size.X - 4,
-            position.Y + size.Y - 4
-        )
-    end
-
-    main:GetPropertyChangedSignal("Position"):Connect(updateGrip)
-    main:GetPropertyChangedSignal("Size"):Connect(updateGrip)
-    main:GetPropertyChangedSignal("Visible"):Connect(updateGrip)
-
-    task.defer(updateGrip)
 
     --==================================================
     -- BUTTONS
