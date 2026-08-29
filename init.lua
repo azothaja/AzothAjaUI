@@ -927,7 +927,11 @@ function WindowMethods:AddTab(data)
     end)
 
     if #self.Tabs == 1 then
-        button:Activate()
+        content.Visible = true
+        accent.Visible = true
+        button.BackgroundColor3 = Config.Theme.Surface2
+        nameLabel.TextColor3 = Config.Theme.Text
+        self.ActiveTab = tab
     end
 
     return tab
