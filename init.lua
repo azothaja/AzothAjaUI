@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.0.3
+-- AZOTHUI v1.1.0
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.0.3"
+AzothUI.Version = "1.1.0"
 
 --==================================================
 -- SERVICES
@@ -42,6 +42,8 @@ local Config = {
         Height = 500,
         MinWidth = 520,
         MinHeight = 360,
+        MaxWidth = 1200,
+        MaxHeight = 900,
         Radius = 14,
         HeaderHeight = 64,
         SidebarWidth = 205,
@@ -180,6 +182,20 @@ local function Text(parent, value, size, color, font)
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
     }, parent)
+end
+
+local function Hover(object, normalColor, hoverColor, duration)
+    object.MouseEnter:Connect(function()
+        Tween(object, duration or 0.12, {
+            BackgroundColor3 = hoverColor
+        })
+    end)
+
+    object.MouseLeave:Connect(function()
+        Tween(object, duration or 0.12, {
+            BackgroundColor3 = normalColor
+        })
+    end)
 end
 
 local function MakeDraggable(handle, target)
@@ -337,7 +353,18 @@ function TabMethods:AddButton(data)
     end)
 
     return {
-        Instance = button
+        Instance = button,
+        SetTitle = function(_, value)
+            title.Text = tostring(value)
+        end,
+        SetDescription = function(_, value)
+            if description then
+                description.Text = tostring(value or "")
+            end
+        end,
+        SetVisible = function(_, value)
+            button.Visible = value == true
+        end,
     }
 end
 
@@ -698,6 +725,39 @@ function TabMethods:AddDropdown(data)
         SetValue = function(_, newValue, fire)
             setValue(newValue, fire)
         end,
+        SetValues = function(_, newValues)
+            values = type(newValues) == "table" and newValues or {}
+            current = values[1] or "Select"
+            selector.Text = tostring(current) .. "  ▾"
+
+            for _, child in ipairs(menu:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+
+            for _, option in ipairs(values) do
+                local item = New("TextButton", {
+                    Size = UDim2.new(1, -8, 0, 30),
+                    BackgroundColor3 = Config.Theme.Surface,
+                    BorderSizePixel = 0,
+                    AutoButtonColor = false,
+                    Text = tostring(option),
+                    TextColor3 = Config.Theme.Text,
+                    TextSize = 11,
+                    Font = Enum.Font.Gotham,
+                    ZIndex = 31,
+                }, menu)
+
+                item.MouseButton1Click:Connect(function()
+                    setValue(option, true)
+                end)
+            end
+        end,
+        Close = function()
+            menu.Visible = false
+            menu.Size = UDim2.fromOffset(190, 0)
+        end,
     }
 end
 
@@ -814,6 +874,357 @@ function TabMethods:AddParagraph(data)
         end,
         SetContent = function(_, value)
             content.Text = tostring(value)
+        end,
+    }
+end
+
+--==================================================
+-- ADDITIONAL COMPONENTS (v1.1.0)
+--==================================================
+
+function TabMethods:AddLabel(data)
+    data = data or {}
+
+    local label = Text(
+        self.Content,
+        data.Text or data.Title or data.Name or "Label",
+        tonumber(data.TextSize) or 11,
+        data.Color or Config.Theme.SubText,
+        data.Font or Enum.Font.Gotham
+    )
+
+    label.Size = UDim2.new(1, 0, 0, tonumber(data.Height) or 28)
+    label.LayoutOrder = self.Order
+    label.TextWrapped = data.Wrapped == true
+
+    self.Order += 1
+
+    return {
+        Instance = label,
+        SetText = function(_, value)
+            label.Text = tostring(value)
+        end,
+        SetColor = function(_, value)
+            if typeof(value) == "Color3" then
+                label.TextColor3 = value
+            end
+        end,
+    }
+end
+
+function TabMethods:AddKeybind(data)
+    data = data or {}
+
+    local current = data.Default
+    if typeof(current) ~= "EnumItem" or current.EnumType ~= Enum.KeyCode then
+        current = Enum.KeyCode.Unknown
+    end
+
+    local listening = false
+
+    local row = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 52),
+        BackgroundColor3 = Config.Theme.Surface,
+        BorderSizePixel = 0,
+        LayoutOrder = self.Order,
+    }, self.Content)
+
+    self.Order += 1
+    Corner(row, 9)
+    Border(row)
+
+    local title = Text(
+        row,
+        data.Title or data.Name or "Keybind",
+        13,
+        Config.Theme.Text,
+        Enum.Font.GothamMedium
+    )
+
+    title.Position = UDim2.fromOffset(15, 0)
+    title.Size = UDim2.new(1, -145, 1, 0)
+
+    local keyButton = New("TextButton", {
+        Size = UDim2.fromOffset(105, 32),
+        Position = UDim2.new(1, -118, 0.5, -16),
+        BackgroundColor3 = Config.Theme.Surface2,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = current == Enum.KeyCode.Unknown and "None" or current.Name,
+        TextColor3 = Config.Theme.Text,
+        TextSize = 11,
+        Font = Enum.Font.GothamMedium,
+    }, row)
+
+    Corner(keyButton, 7)
+    Border(keyButton)
+
+    local function refresh()
+        keyButton.Text = listening
+            and "Press key..."
+            or (current == Enum.KeyCode.Unknown and "None" or current.Name)
+    end
+
+    local function setValue(newKey, fire)
+        if typeof(newKey) == "EnumItem" and newKey.EnumType == Enum.KeyCode then
+            current = newKey
+        elseif newKey == nil then
+            current = Enum.KeyCode.Unknown
+        else
+            return
+        end
+
+        listening = false
+        refresh()
+
+        if fire and type(data.Callback) == "function" then
+            task.spawn(data.Callback, current)
+        end
+    end
+
+    keyButton.MouseButton1Click:Connect(function()
+        listening = not listening
+        refresh()
+    end)
+
+    local inputConnection = UserInputService.InputBegan:Connect(function(input, processed)
+        if not listening then
+            return
+        end
+
+        if processed and input.UserInputType ~= Enum.UserInputType.Keyboard then
+            return
+        end
+
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            setValue(input.KeyCode, true)
+        end
+    end)
+
+    Hover(keyButton, Config.Theme.Surface2, Config.Theme.Red, 0.1)
+
+    return {
+        Instance = row,
+        GetValue = function()
+            return current
+        end,
+        SetValue = function(_, newKey, fire)
+            setValue(newKey, fire)
+        end,
+        Destroy = function()
+            if inputConnection then
+                inputConnection:Disconnect()
+            end
+            row:Destroy()
+        end,
+    }
+end
+
+function TabMethods:AddMultiDropdown(data)
+    data = data or {}
+
+    local values = data.Values or {}
+    local selected = {}
+
+    if type(data.Default) == "table" then
+        for _, value in ipairs(data.Default) do
+            selected[tostring(value)] = true
+        end
+    end
+
+    local row = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 52),
+        BackgroundColor3 = Config.Theme.Surface,
+        BorderSizePixel = 0,
+        LayoutOrder = self.Order,
+        ZIndex = 10,
+    }, self.Content)
+
+    self.Order += 1
+    Corner(row, 9)
+    Border(row)
+
+    local title = Text(
+        row,
+        data.Title or data.Name or "Multi Dropdown",
+        13,
+        Config.Theme.Text,
+        Enum.Font.GothamMedium
+    )
+
+    title.Position = UDim2.fromOffset(15, 0)
+    title.Size = UDim2.new(0.42, 0, 1, 0)
+
+    local selector = New("TextButton", {
+        Size = UDim2.fromOffset(190, 34),
+        Position = UDim2.new(1, -205, 0.5, -17),
+        BackgroundColor3 = Config.Theme.Surface2,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "Select...",
+        TextColor3 = Config.Theme.Text,
+        TextSize = 11,
+        Font = Enum.Font.GothamMedium,
+        ZIndex = 20,
+    }, row)
+
+    Corner(selector, 7)
+    Border(selector)
+
+    local menu = New("Frame", {
+        Size = UDim2.fromOffset(190, 0),
+        BackgroundColor3 = Config.Theme.Surface,
+        BorderSizePixel = 0,
+        Visible = false,
+        ClipsDescendants = true,
+        ZIndex = 200,
+    }, ScreenGui)
+
+    Corner(menu, 7)
+    Border(menu)
+
+    local list = New("UIListLayout", {
+        Padding = UDim.new(0, 2),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, menu)
+
+    local function updateText()
+        local result = {}
+        for _, option in ipairs(values) do
+            if selected[tostring(option)] then
+                table.insert(result, tostring(option))
+            end
+        end
+
+        selector.Text = #result == 0 and "Select..."
+            or (#result <= 2 and table.concat(result, ", ") or tostring(#result) .. " selected")
+    end
+
+    local function positionMenu()
+        local pos = selector.AbsolutePosition
+        local size = selector.AbsoluteSize
+        menu.Position = UDim2.fromOffset(pos.X, pos.Y + size.Y + 4)
+    end
+
+    local function rebuild()
+        for _, child in ipairs(menu:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+
+        for _, option in ipairs(values) do
+            local key = tostring(option)
+            local item = New("TextButton", {
+                Size = UDim2.new(1, -8, 0, 30),
+                BackgroundColor3 = selected[key] and Config.Theme.Surface2 or Config.Theme.Surface,
+                BorderSizePixel = 0,
+                AutoButtonColor = false,
+                Text = (selected[key] and "✓ " or "  ") .. key,
+                TextColor3 = Config.Theme.Text,
+                TextSize = 11,
+                Font = Enum.Font.Gotham,
+                ZIndex = 201,
+            }, menu)
+
+            item.MouseButton1Click:Connect(function()
+                selected[key] = not selected[key]
+                rebuild()
+                updateText()
+
+                if type(data.Callback) == "function" then
+                    local result = {}
+                    for _, value in ipairs(values) do
+                        if selected[tostring(value)] then
+                            table.insert(result, value)
+                        end
+                    end
+                    task.spawn(data.Callback, result)
+                end
+            end)
+
+            item.MouseEnter:Connect(function()
+                item.BackgroundColor3 = Config.Theme.Surface2
+            end)
+
+            item.MouseLeave:Connect(function()
+                item.BackgroundColor3 = selected[key] and Config.Theme.Surface2 or Config.Theme.Surface
+            end)
+        end
+    end
+
+    selector.MouseButton1Click:Connect(function()
+        menu.Visible = not menu.Visible
+        if menu.Visible then
+            rebuild()
+            menu.Size = UDim2.fromOffset(190, math.min(#values * 32 + 8, 180))
+            positionMenu()
+        else
+            menu.Size = UDim2.fromOffset(190, 0)
+        end
+    end)
+
+    UserInputService.InputBegan:Connect(function(input)
+        if not menu.Visible then
+            return
+        end
+
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local p = input.Position
+            local a = menu.AbsolutePosition
+            local b = a + menu.AbsoluteSize
+            local s = selector.AbsolutePosition
+            local e = s + selector.AbsoluteSize
+
+            if (p.X < a.X or p.X > b.X or p.Y < a.Y or p.Y > b.Y)
+            and (p.X < s.X or p.X > e.X or p.Y < s.Y or p.Y > e.Y) then
+                menu.Visible = false
+                menu.Size = UDim2.fromOffset(190, 0)
+            end
+        end
+    end)
+
+    updateText()
+
+    return {
+        Instance = row,
+        GetValue = function()
+            local result = {}
+            for _, option in ipairs(values) do
+                if selected[tostring(option)] then
+                    table.insert(result, option)
+                end
+            end
+            return result
+        end,
+        SetValue = function(_, newValues, fire)
+            selected = {}
+            if type(newValues) == "table" then
+                for _, value in ipairs(newValues) do
+                    selected[tostring(value)] = true
+                end
+            end
+            updateText()
+            rebuild()
+
+            if fire and type(data.Callback) == "function" then
+                local result = {}
+                for _, value in ipairs(values) do
+                    if selected[tostring(value)] then
+                        table.insert(result, value)
+                    end
+                end
+                task.spawn(data.Callback, result)
+            end
+        end,
+        SetValues = function(_, newValues)
+            values = type(newValues) == "table" and newValues or {}
+            rebuild()
+            updateText()
+        end,
+        Close = function()
+            menu.Visible = false
+            menu.Size = UDim2.fromOffset(190, 0)
         end,
     }
 end
@@ -956,6 +1367,36 @@ function WindowMethods:SelectTab(tab)
     self.ActiveTab = tab
 end
 
+function WindowMethods:Toggle()
+    if self.Main.Visible then
+        self:Minimize()
+    else
+        self:Maximize()
+    end
+end
+
+function WindowMethods:IsMinimized()
+    return self.Mini.Visible == true and self.Main.Visible == false
+end
+
+function WindowMethods:SetVisible(value)
+    value = value == true
+    self.Main.Visible = value
+    if value then
+        self.Mini.Visible = false
+    end
+end
+
+function WindowMethods:GetActiveTab()
+    return self.ActiveTab
+end
+
+function WindowMethods:SetSidebarVisible(value)
+    if self.Sidebar then
+        self.Sidebar.Visible = value == true
+    end
+end
+
 function WindowMethods:SetTitle(value)
     if self.Title then
         self.Title.Text = tostring(value)
@@ -969,14 +1410,16 @@ function WindowMethods:SetVersion(value)
 end
 
 function WindowMethods:SetSize(width, height)
-    width = math.max(
+    width = math.clamp(
         tonumber(width) or Config.Window.Width,
-        Config.Window.MinWidth
+        Config.Window.MinWidth,
+        Config.Window.MaxWidth
     )
 
-    height = math.max(
+    height = math.clamp(
         tonumber(height) or Config.Window.Height,
-        Config.Window.MinHeight
+        Config.Window.MinHeight,
+        Config.Window.MaxHeight
     )
 
     self.Main.Size = UDim2.fromOffset(width, height)
@@ -1367,6 +1810,7 @@ function AzothUI:CreateWindow(data)
         TabOrder = 1,
         ActiveTab = nil,
         Destroyed = false,
+        Connections = {},
     }, WindowMethods)
 
     --==================================================
@@ -1476,14 +1920,16 @@ function AzothUI:CreateWindow(data)
 
         local delta = input.Position - resizeStart
 
-        local newWidth = math.max(
+        local newWidth = math.clamp(
+            startingSize.X + delta.X,
             Config.Window.MinWidth,
-            startingSize.X + delta.X
+            Config.Window.MaxWidth
         )
 
-        local newHeight = math.max(
+        local newHeight = math.clamp(
+            startingSize.Y + delta.Y,
             Config.Window.MinHeight,
-            startingSize.Y + delta.Y
+            Config.Window.MaxHeight
         )
 
         main.Size = UDim2.fromOffset(newWidth, newHeight)
