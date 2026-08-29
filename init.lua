@@ -980,10 +980,6 @@ function WindowMethods:SetSize(width, height)
     )
 
     self.Main.Size = UDim2.fromOffset(width, height)
-
-    if self.Shadow then
-        self.Shadow.Size = UDim2.fromOffset(width + 8, height + 8)
-    end
 end
 
 function WindowMethods:GetSize()
@@ -996,17 +992,11 @@ end
 
 function WindowMethods:Minimize()
     self.Main.Visible = false
-    if self.Shadow then
-        self.Shadow.Visible = false
-    end
     self.Mini.Visible = true
 end
 
 function WindowMethods:Maximize()
     self.Main.Visible = true
-    if self.Shadow then
-        self.Shadow.Visible = true
-    end
     self.Mini.Visible = false
 end
 
@@ -1027,10 +1017,6 @@ function WindowMethods:Close()
 
     if self.Main then
         self.Main:Destroy()
-    end
-
-    if self.Shadow then
-        self.Shadow:Destroy()
     end
 end
 
@@ -1159,35 +1145,6 @@ function AzothUI:CreateWindow(data)
     width = math.max(width, Config.Window.MinWidth)
     height = math.max(height, Config.Window.MinHeight)
 
-    --==================================================
-    -- SINGLE OUTER SHADOW
-    --==================================================
-    -- Shadow is a separate visual layer behind the window. It shares the
-    -- EXACT same center anchor as the window (no offset in either axis),
-    -- with equal +4px padding on all four sides. This keeps it perfectly
-    -- concentric with the window's rounded corners at every corner.
-    --
-    -- IMPORTANT: previously this had a +4 Y offset to fake a "drop"
-    -- shadow. That made the top edge padding 0px while the bottom edge
-    -- padding became 8px - asymmetric padding around a symmetric
-    -- UICorner radius, which is exactly what produced the mismatched/
-    -- notched corner at the top of the window. Do not reintroduce an
-    -- offset here without also compensating the corner radius per edge
-    -- (which UICorner cannot do).
-
-    local shadow = New("Frame", {
-        Name = "WindowShadow",
-        Size = UDim2.fromOffset(width + 8, height + 8),
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0.62,
-        BorderSizePixel = 0,
-        ZIndex = 8,
-    }, ScreenGui)
-
-    Corner(shadow, Config.Window.Radius + 4)
-
     local main = New("Frame", {
         Name = "Window",
         Size = UDim2.fromOffset(width, height),
@@ -1205,9 +1162,18 @@ function AzothUI:CreateWindow(data)
     -- UIStroke here: a stroke plus a second rounded child was the source
     -- of the stacked/uneven corner appearance.
 
-    -- IMPORTANT: inside has NO UICorner. The outer Window is the only
-    -- rounded clipping surface. This prevents the double-corner / sharp
-    -- corner stacking seen when both Main and Inside have their own curves.
+    -- IMPORTANT: `inside` gets its OWN UICorner (radius - 1, matching the
+    -- 1px inset) even though `main` already has ClipsDescendants = true.
+    -- Roblox's ClipsDescendants only clips content to the object's
+    -- rectangular bounding box - it does NOT clip to the rounded
+    -- silhouette that UICorner draws. Without its own UICorner, `inside`
+    -- is a perfectly square-cornered rectangle that gets rendered right
+    -- up to its sharp corners, poking straight through the curved part
+    -- of `main`'s corner underneath it - that mismatch is exactly what
+    -- produced the sharp-corner-stacked-on-round-corner look. Giving
+    -- `inside` a radius that's 1px smaller than `main`'s keeps the two
+    -- curves concentric (since the inset is also 1px), so they render as
+    -- one clean border ring instead of two mismatched shapes.
     local inside = New("Frame", {
         Position = UDim2.fromOffset(1, 1),
         Size = UDim2.new(1, -2, 1, -2),
@@ -1216,6 +1182,8 @@ function AzothUI:CreateWindow(data)
         ClipsDescendants = true,
         ZIndex = 11,
     }, main)
+
+    Corner(inside, Config.Window.Radius - 1)
 
     local header = New("Frame", {
         Size = UDim2.new(1, 0, 0, Config.Window.HeaderHeight),
@@ -1360,7 +1328,6 @@ function AzothUI:CreateWindow(data)
 
     local window = setmetatable({
         Main = main,
-        Shadow = shadow,
         Header = header,
         Sidebar = sidebar,
         ContentArea = contentArea,
@@ -1494,10 +1461,6 @@ function AzothUI:CreateWindow(data)
         )
 
         main.Size = UDim2.fromOffset(newWidth, newHeight)
-
-        if shadow then
-            shadow.Size = UDim2.fromOffset(newWidth + 8, newHeight + 8)
-        end
     end)
 
     --==================================================
