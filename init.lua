@@ -1145,12 +1145,18 @@ function AzothUI:CreateWindow(data)
     width = math.max(width, Config.Window.MinWidth)
     height = math.max(height, Config.Window.MinHeight)
 
+    --==================================================
+    -- SINGLE WINDOW SURFACE
+    --==================================================
+    -- The window is now a single rounded/clipped surface.
+    -- No 1px-offset `inside` frame is used.
+
     local main = New("Frame", {
         Name = "Window",
         Size = UDim2.fromOffset(width, height),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = Config.Theme.Border,
+        BackgroundColor3 = Config.Theme.Background,
         BorderSizePixel = 0,
         ClipsDescendants = true,
         ZIndex = 10,
@@ -1158,39 +1164,21 @@ function AzothUI:CreateWindow(data)
 
     Corner(main, Config.Window.Radius)
 
-    -- The main frame itself supplies the 1px border. Do NOT add a second
-    -- UIStroke here: a stroke plus a second rounded child was the source
-    -- of the stacked/uneven corner appearance.
+    -- UIStroke provides the outer border without introducing
+    -- another rounded frame underneath/inside the window.
+    Border(main, Config.Theme.Border, 1, 0)
 
-    -- IMPORTANT: `inside` gets its OWN UICorner (radius - 1, matching the
-    -- 1px inset) even though `main` already has ClipsDescendants = true.
-    -- Roblox's ClipsDescendants only clips content to the object's
-    -- rectangular bounding box - it does NOT clip to the rounded
-    -- silhouette that UICorner draws. Without its own UICorner, `inside`
-    -- is a perfectly square-cornered rectangle that gets rendered right
-    -- up to its sharp corners, poking straight through the curved part
-    -- of `main`'s corner underneath it - that mismatch is exactly what
-    -- produced the sharp-corner-stacked-on-round-corner look. Giving
-    -- `inside` a radius that's 1px smaller than `main`'s keeps the two
-    -- curves concentric (since the inset is also 1px), so they render as
-    -- one clean border ring instead of two mismatched shapes.
-    local inside = New("Frame", {
-        Position = UDim2.fromOffset(1, 1),
-        Size = UDim2.new(1, -2, 1, -2),
-        BackgroundColor3 = Config.Theme.Background,
-        BorderSizePixel = 0,
-        ClipsDescendants = true,
-        ZIndex = 11,
-    }, main)
-
-    Corner(inside, Config.Window.Radius - 1)
+    --==================================================
+    -- HEADER
+    --==================================================
 
     local header = New("Frame", {
         Size = UDim2.new(1, 0, 0, Config.Window.HeaderHeight),
         BackgroundColor3 = Config.Theme.Background,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ZIndex = 15,
-    }, inside)
+    }, main)
 
     local title = Text(
         header,
@@ -1250,7 +1238,11 @@ function AzothUI:CreateWindow(data)
         BackgroundTransparency = 0.45,
         BorderSizePixel = 0,
         ZIndex = 16,
-    }, inside)
+    }, main)
+
+    --==================================================
+    -- SIDEBAR
+    --==================================================
 
     local sidebar = New("Frame", {
         Size = UDim2.new(
@@ -1263,7 +1255,7 @@ function AzothUI:CreateWindow(data)
         BackgroundColor3 = Config.Theme.Sidebar,
         BorderSizePixel = 0,
         ZIndex = 14,
-    }, inside)
+    }, main)
 
     New("UIPadding", {
         PaddingLeft = UDim.new(0, 12),
@@ -1288,6 +1280,10 @@ function AzothUI:CreateWindow(data)
     sidebarCaption.Size = UDim2.new(1, 0, 0, 18)
     sidebarCaption.LayoutOrder = 0
 
+    --==================================================
+    -- CONTENT
+    --==================================================
+
     local contentArea = New("Frame", {
         Size = UDim2.new(
             1,
@@ -1303,7 +1299,7 @@ function AzothUI:CreateWindow(data)
         BorderSizePixel = 0,
         ClipsDescendants = true,
         ZIndex = 13,
-    }, inside)
+    }, main)
 
     --==================================================
     -- MINI LOGO
@@ -1325,6 +1321,10 @@ function AzothUI:CreateWindow(data)
 
     Corner(mini, 29)
     Border(mini, Config.Theme.Border)
+
+    --==================================================
+    -- WINDOW OBJECT
+    --==================================================
 
     local window = setmetatable({
         Main = main,
@@ -1350,9 +1350,8 @@ function AzothUI:CreateWindow(data)
     --==================================================
     -- RESIZE GRIP
     --==================================================
-    -- The grip is INSIDE the single rounded/clipped Window surface.
-    -- It is never positioned as a ScreenGui sibling, so it cannot create
-    -- a second square/rounded corner over the real window corner.
+    -- The grip is a child of the same rounded Window surface.
+    -- It cannot create a second corner/border layer.
 
     local gripInset = 6
 
@@ -1368,7 +1367,7 @@ function AzothUI:CreateWindow(data)
         Active = true,
         Selectable = false,
         ZIndex = 300,
-    }, inside)
+    }, main)
 
     window.Grip = grip
 
@@ -1431,6 +1430,7 @@ function AzothUI:CreateWindow(data)
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 resizing = false
+
                 if connection then
                     connection:Disconnect()
                 end
