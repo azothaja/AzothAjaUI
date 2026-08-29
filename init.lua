@@ -6,7 +6,7 @@
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.4.1"
+AzothUI.Version = "1.4.2"
 
 --==================================================
 -- SERVICES
@@ -57,6 +57,11 @@ Config.ThemeName = "Red"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
 
+-- v1.4.2:
+-- * Fixed Dropdown popup layering so the menu renders above later components.
+-- * Moved single Dropdown popup to ScreenGui to avoid ScrollingFrame clipping.
+-- * Added outside-click closing and viewport-aware popup positioning.
+--
 -- v1.4.1:
 -- * Fixed AddButton description setter scope.
 -- * Fixed AddButton hover color conflict/undefined tab reference.
@@ -1026,15 +1031,20 @@ function TabMethods:AddDropdown(data)
     Corner(selector, 7)
     Border(selector)
 
+    -- v1.4.2: The popup must NOT be parented to the component row.
+    -- The row lives inside a ScrollingFrame, so a child popup can be
+    -- clipped and can also fall behind later components. Parent it to the
+    -- top-level ScreenGui instead and position it using AbsolutePosition.
     local menu = New("Frame", {
         Size = UDim2.fromOffset(190, 0),
-        Position = UDim2.new(1, -205, 1, 4),
+        Position = UDim2.fromOffset(0, 0),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         Visible = false,
         ClipsDescendants = true,
-        ZIndex = 30,
-    }, row)
+        ZIndex = 600,
+        Active = true,
+    }, ScreenGui)
 
     Corner(menu, 7)
     Border(menu)
@@ -1043,6 +1053,30 @@ function TabMethods:AddDropdown(data)
         Padding = UDim.new(0, 2),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, menu)
+
+    local function positionMenu()
+        local selectorPosition = selector.AbsolutePosition
+        local selectorSize = selector.AbsoluteSize
+        local menuHeight = math.min(#values * 32 + 8, 180)
+
+        local x = selectorPosition.X
+        local y = selectorPosition.Y + selectorSize.Y + 4
+
+        -- Keep the popup inside the visible viewport when possible.
+        local camera = workspace.CurrentCamera
+        local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+        local maxX = math.max(4, viewport.X - 194)
+        local maxY = math.max(4, viewport.Y - menuHeight - 4)
+
+        x = math.clamp(x, 4, maxX)
+
+        if y + menuHeight > viewport.Y - 4 then
+            y = selectorPosition.Y - menuHeight - 4
+        end
+
+        y = math.clamp(y, 4, maxY)
+        menu.Position = UDim2.fromOffset(x, y)
+    end
 
     local function setValue(newValue, fire)
         current = newValue
@@ -1090,7 +1124,35 @@ function TabMethods:AddDropdown(data)
                 190,
                 math.min(#values * 32 + 8, 180)
             )
+            positionMenu()
         else
+            menu.Size = UDim2.fromOffset(190, 0)
+        end
+    end)
+
+    -- Close the popup when clicking anywhere outside the selector/menu.
+    UserInputService.InputBegan:Connect(function(input)
+        if not menu.Visible then
+            return
+        end
+
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+            return
+        end
+
+        local p = input.Position
+        local menuPos = menu.AbsolutePosition
+        local menuEnd = menuPos + menu.AbsoluteSize
+        local selectorPos = selector.AbsolutePosition
+        local selectorEnd = selectorPos + selector.AbsoluteSize
+
+        local insideMenu = p.X >= menuPos.X and p.X <= menuEnd.X
+            and p.Y >= menuPos.Y and p.Y <= menuEnd.Y
+        local insideSelector = p.X >= selectorPos.X and p.X <= selectorEnd.X
+            and p.Y >= selectorPos.Y and p.Y <= selectorEnd.Y
+
+        if not insideMenu and not insideSelector then
+            menu.Visible = false
             menu.Size = UDim2.fromOffset(190, 0)
         end
     end)
