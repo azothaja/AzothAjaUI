@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.0.2
+-- AZOTHUI v1.0.3
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.0.2"
+AzothUI.Version = "1.0.3"
 
 --==================================================
 -- SERVICES
@@ -38,13 +38,13 @@ local Config = {
     },
 
     Window = {
-        Width = 760,
-        Height = 480,
-        MinWidth = 560,
-        MinHeight = 380,
+        Width = 720,
+        Height = 500,
+        MinWidth = 520,
+        MinHeight = 360,
         Radius = 14,
-        HeaderHeight = 60,
-        SidebarWidth = 180,
+        HeaderHeight = 64,
+        SidebarWidth = 205,
     },
 
     Logo = "rbxassetid://111606226814401",
@@ -179,7 +179,6 @@ local function Text(parent, value, size, color, font)
         Font = font or Enum.Font.Gotham,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
-        TextTruncate = Enum.TextTruncate.AtEnd,
     }, parent)
 end
 
@@ -232,6 +231,17 @@ local function MakeDraggable(handle, target)
 end
 
 --==================================================
+-- ANTI DUPLICATE
+--==================================================
+
+local existing = GuiParent:FindFirstChild("AzothUI")
+if existing then
+    pcall(function()
+        existing:Destroy()
+    end)
+end
+
+--==================================================
 -- SCREEN GUI
 --==================================================
 
@@ -259,7 +269,7 @@ function TabMethods:AddSection(title)
         Enum.Font.GothamBold
     )
 
-    label.Size = UDim2.new(1, 0, 0, 24)
+    label.Size = UDim2.new(1, 0, 0, 26)
     label.LayoutOrder = self.Order
 
     self.Order += 1
@@ -271,7 +281,7 @@ function TabMethods:AddButton(data)
     data = data or {}
 
     local button = New("TextButton", {
-        Size = UDim2.new(1, 0, 0, data.Description and 62 or 48),
+        Size = UDim2.new(1, 0, 0, data.Description and 58 or 46),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -292,8 +302,8 @@ function TabMethods:AddButton(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(16, data.Description and 5 or 0)
-    title.Size = UDim2.new(1, -58, 0, data.Description and 25 or 48)
+    title.Position = UDim2.fromOffset(15, data.Description and 4 or 0)
+    title.Size = UDim2.new(1, -55, 0, data.Description and 25 or 46)
 
     if data.Description then
         local description = Text(
@@ -303,8 +313,8 @@ function TabMethods:AddButton(data)
             Config.Theme.SubText
         )
 
-        description.Position = UDim2.fromOffset(16, 31)
-        description.Size = UDim2.new(1, -58, 0, 18)
+        description.Position = UDim2.fromOffset(15, 29)
+        description.Size = UDim2.new(1, -55, 0, 18)
     end
 
     local arrow = Text(
@@ -315,8 +325,8 @@ function TabMethods:AddButton(data)
         Enum.Font.GothamBold
     )
 
-    arrow.Position = UDim2.new(1, -38, 0, 0)
-    arrow.Size = UDim2.fromOffset(28, button.Size.Y.Offset)
+    arrow.Position = UDim2.new(1, -34, 0, 0)
+    arrow.Size = UDim2.fromOffset(25, button.Size.Y.Offset)
     arrow.TextXAlignment = Enum.TextXAlignment.Center
 
     button.MouseEnter:Connect(function()
@@ -348,7 +358,7 @@ function TabMethods:AddToggle(data)
     local value = data.Default == true
 
     local row = New("Frame", {
-        Size = UDim2.new(1, 0, 0, 54),
+        Size = UDim2.new(1, 0, 0, 52),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         LayoutOrder = self.Order,
@@ -367,12 +377,12 @@ function TabMethods:AddToggle(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(16, 0)
-    title.Size = UDim2.new(1, -92, 1, 0)
+    title.Position = UDim2.fromOffset(15, 0)
+    title.Size = UDim2.new(1, -85, 1, 0)
 
     local switch = New("TextButton", {
-        Size = UDim2.fromOffset(46, 25),
-        Position = UDim2.new(1, -62, 0.5, -12.5),
+        Size = UDim2.fromOffset(44, 24),
+        Position = UDim2.new(1, -58, 0.5, -12),
         BackgroundColor3 = value and Config.Theme.Red or Config.Theme.Muted,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -384,7 +394,7 @@ function TabMethods:AddToggle(data)
     local knob = New("Frame", {
         Size = UDim2.fromOffset(18, 18),
         Position = value
-            and UDim2.new(1, -22, 0.5, -9)
+            and UDim2.new(1, -21, 0.5, -9)
             or UDim2.new(0, 3, 0.5, -9),
         BackgroundColor3 = Config.Theme.White,
         BorderSizePixel = 0,
@@ -403,7 +413,7 @@ function TabMethods:AddToggle(data)
 
         Tween(knob, 0.15, {
             Position = value
-                and UDim2.new(1, -22, 0.5, -9)
+                and UDim2.new(1, -21, 0.5, -9)
                 or UDim2.new(0, 3, 0.5, -9)
         })
 
@@ -439,7 +449,7 @@ function TabMethods:AddSlider(data)
     )
 
     local row = New("Frame", {
-        Size = UDim2.new(1, 0, 0, 74),
+        Size = UDim2.new(1, 0, 0, 72),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         LayoutOrder = self.Order,
@@ -458,7 +468,7 @@ function TabMethods:AddSlider(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(16, 8)
+    title.Position = UDim2.fromOffset(15, 7)
     title.Size = UDim2.new(1, -80, 0, 20)
 
     local valueLabel = Text(
@@ -473,8 +483,8 @@ function TabMethods:AddSlider(data)
     valueLabel.TextXAlignment = Enum.TextXAlignment.Right
 
     local bar = New("Frame", {
-        Size = UDim2.new(1, -32, 0, 5),
-        Position = UDim2.fromOffset(16, 49),
+        Size = UDim2.new(1, -30, 0, 5),
+        Position = UDim2.fromOffset(15, 47),
         BackgroundColor3 = Config.Theme.Muted,
         BorderSizePixel = 0,
         Active = true,
@@ -603,12 +613,12 @@ function TabMethods:AddDropdown(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(16, 0)
-    title.Size = UDim2.new(0.42, 0, 1, 0)
+    title.Position = UDim2.fromOffset(15, 0)
+    title.Size = UDim2.new(0.4, 0, 1, 0)
 
     local selector = New("TextButton", {
-        Size = UDim2.fromOffset(180, 34),
-        Position = UDim2.new(1, -196, 0.5, -17),
+        Size = UDim2.fromOffset(190, 34),
+        Position = UDim2.new(1, -205, 0.5, -17),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -623,8 +633,8 @@ function TabMethods:AddDropdown(data)
     Border(selector)
 
     local menu = New("Frame", {
-        Size = UDim2.fromOffset(180, 0),
-        Position = UDim2.new(1, -196, 1, 4),
+        Size = UDim2.fromOffset(190, 0),
+        Position = UDim2.new(1, -205, 1, 4),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         Visible = false,
@@ -645,7 +655,7 @@ function TabMethods:AddDropdown(data)
         selector.Text = tostring(current) .. "  ▾"
 
         menu.Visible = false
-        menu.Size = UDim2.fromOffset(180, 0)
+        menu.Size = UDim2.fromOffset(190, 0)
 
         if fire and type(data.Callback) == "function" then
             task.spawn(data.Callback, current)
@@ -654,7 +664,7 @@ function TabMethods:AddDropdown(data)
 
     for _, option in ipairs(values) do
         local item = New("TextButton", {
-            Size = UDim2.new(1, -8, 0, 29),
+            Size = UDim2.new(1, -8, 0, 30),
             BackgroundColor3 = Config.Theme.Surface,
             BorderSizePixel = 0,
             AutoButtonColor = false,
@@ -683,11 +693,11 @@ function TabMethods:AddDropdown(data)
 
         if menu.Visible then
             menu.Size = UDim2.fromOffset(
-                180,
+                190,
                 math.min(#values * 32 + 8, 180)
             )
         else
-            menu.Size = UDim2.fromOffset(180, 0)
+            menu.Size = UDim2.fromOffset(190, 0)
         end
     end)
 
@@ -727,12 +737,12 @@ function TabMethods:AddInput(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(16, 0)
-    title.Size = UDim2.fromOffset(105, 58)
+    title.Position = UDim2.fromOffset(15, 0)
+    title.Size = UDim2.fromOffset(115, 58)
 
     local box = New("TextBox", {
-        Size = UDim2.new(1, -137, 0, 34),
-        Position = UDim2.fromOffset(122, 12),
+        Size = UDim2.new(1, -145, 0, 34),
+        Position = UDim2.fromOffset(130, 12),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         Text = value,
@@ -794,7 +804,7 @@ function TabMethods:AddParagraph(data)
         Enum.Font.GothamBold
     )
 
-    title.Position = UDim2.fromOffset(16, 8)
+    title.Position = UDim2.fromOffset(15, 8)
     title.Size = UDim2.new(1, -30, 0, 20)
 
     local content = Text(
@@ -804,7 +814,7 @@ function TabMethods:AddParagraph(data)
         Config.Theme.SubText
     )
 
-    content.Position = UDim2.fromOffset(16, 31)
+    content.Position = UDim2.fromOffset(15, 31)
     content.Size = UDim2.new(1, -30, 0, 34)
     content.TextWrapped = true
 
@@ -833,7 +843,7 @@ function WindowMethods:AddTab(data)
     local icon = data.Icon or ""
 
     local button = New("TextButton", {
-        Size = UDim2.new(1, 0, 0, 42),
+        Size = UDim2.new(1, 0, 0, 44),
         BackgroundColor3 = Config.Theme.Sidebar,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -847,8 +857,8 @@ function WindowMethods:AddTab(data)
     Corner(button, 9)
 
     local accent = New("Frame", {
-        Size = UDim2.new(0, 3, 1, -12),
-        Position = UDim2.fromOffset(0, 6),
+        Size = UDim2.new(0, 3, 1, -14),
+        Position = UDim2.fromOffset(0, 7),
         BackgroundColor3 = Config.Theme.Red,
         BorderSizePixel = 0,
         Visible = false,
@@ -864,8 +874,8 @@ function WindowMethods:AddTab(data)
         Config.Theme.SubText
     )
 
-    iconLabel.Position = UDim2.fromOffset(8, 0)
-    iconLabel.Size = UDim2.fromOffset(30, 42)
+    iconLabel.Position = UDim2.fromOffset(9, 0)
+    iconLabel.Size = UDim2.fromOffset(28, 44)
     iconLabel.TextXAlignment = Enum.TextXAlignment.Center
 
     local nameLabel = Text(
@@ -876,17 +886,17 @@ function WindowMethods:AddTab(data)
         Enum.Font.GothamMedium
     )
 
-    nameLabel.Position = UDim2.fromOffset(46, 0)
-    nameLabel.Size = UDim2.new(1, -54, 1, 0)
+    nameLabel.Position = UDim2.fromOffset(48, 0)
+    nameLabel.Size = UDim2.new(1, -55, 1, 0)
 
     local content = New("ScrollingFrame", {
-        Size = UDim2.new(1, -28, 1, -24),
-        Position = UDim2.fromOffset(14, 12),
+        Size = UDim2.new(1, -18, 1, -18),
+        Position = UDim2.fromOffset(9, 9),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ScrollBarThickness = 3,
         ScrollBarImageColor3 = Config.Theme.Red,
-        ScrollBarImageTransparency = 0.35,
+        ScrollBarImageTransparency = 0.25,
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         CanvasSize = UDim2.new(),
         ScrollingDirection = Enum.ScrollingDirection.Y,
@@ -895,13 +905,8 @@ function WindowMethods:AddTab(data)
         ZIndex = 19,
     }, self.ContentArea)
 
-    New("UIPadding", {
-        PaddingRight = UDim.new(0, 6),
-        PaddingBottom = UDim.new(0, 8),
-    }, content)
-
     New("UIListLayout", {
-        Padding = UDim.new(0, 7),
+        Padding = UDim.new(0, 8),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, content)
 
@@ -916,28 +921,29 @@ function WindowMethods:AddTab(data)
 
     table.insert(self.Tabs, tab)
 
-button.MouseButton1Click:Connect(function()
-    for _, other in ipairs(self.Tabs) do
-        other.Content.Visible = false
-        other.Accent.Visible = false
-        other.Button.BackgroundColor3 = Config.Theme.Sidebar
-        other.Label.TextColor3 = Config.Theme.SubText
+    button.MouseButton1Click:Connect(function()
+        for _, other in ipairs(self.Tabs) do
+            other.Content.Visible = false
+            other.Accent.Visible = false
+            other.Button.BackgroundColor3 = Config.Theme.Sidebar
+            other.Label.TextColor3 = Config.Theme.SubText
+        end
+
+        content.Visible = true
+        accent.Visible = true
+        button.BackgroundColor3 = Config.Theme.Surface2
+        nameLabel.TextColor3 = Config.Theme.Text
+
+        self.ActiveTab = tab
+    end)
+
+    if #self.Tabs == 1 then
+        content.Visible = true
+        accent.Visible = true
+        button.BackgroundColor3 = Config.Theme.Surface2
+        nameLabel.TextColor3 = Config.Theme.Text
+        self.ActiveTab = tab
     end
-
-    content.Visible = true
-    accent.Visible = true
-    button.BackgroundColor3 = Config.Theme.Surface2
-    nameLabel.TextColor3 = Config.Theme.Text
-    self.ActiveTab = tab
-end)
-
-if #self.Tabs == 1 then
-    content.Visible = true
-    accent.Visible = true
-    button.BackgroundColor3 = Config.Theme.Surface2
-    nameLabel.TextColor3 = Config.Theme.Text
-    self.ActiveTab = tab
-end
 
     return tab
 end
@@ -985,6 +991,7 @@ function WindowMethods:SetSize(width, height)
     )
 
     self.Main.Size = UDim2.fromOffset(width, height)
+
     if self.Shadow then
         self.Shadow.Size = UDim2.fromOffset(width + 8, height + 8)
     end
@@ -1021,7 +1028,10 @@ function WindowMethods:Close()
 
     self.Destroyed = true
 
-    -- Resize grip is a child of the window surface and is cleaned up with it.
+    if self.Grip then
+        self.Grip:Destroy()
+    end
+
     if self.Mini then
         self.Mini:Destroy()
     end
@@ -1160,6 +1170,13 @@ function AzothUI:CreateWindow(data)
     width = math.max(width, Config.Window.MinWidth)
     height = math.max(height, Config.Window.MinHeight)
 
+    --==================================================
+    -- SINGLE OUTER SHADOW
+    --==================================================
+    -- Shadow is a separate visual layer behind the window. It follows the
+    -- exact same center and size as the window and never overlaps the
+    -- window's rounded edge.
+
     local shadow = New("Frame", {
         Name = "WindowShadow",
         Size = UDim2.fromOffset(width + 8, height + 8),
@@ -1170,7 +1187,8 @@ function AzothUI:CreateWindow(data)
         BorderSizePixel = 0,
         ZIndex = 8,
     }, ScreenGui)
-    Corner(shadow, Config.Window.Radius + 2)
+
+    Corner(shadow, Config.Window.Radius + 3)
 
     local main = New("Frame", {
         Name = "Window",
@@ -1185,6 +1203,13 @@ function AzothUI:CreateWindow(data)
 
     Corner(main, Config.Window.Radius)
 
+    -- The main frame itself supplies the 1px border. Do NOT add a second
+    -- UIStroke here: a stroke plus a second rounded child was the source
+    -- of the stacked/uneven corner appearance.
+
+    -- IMPORTANT: inside has NO UICorner. The outer Window is the only
+    -- rounded clipping surface. This prevents the double-corner / sharp
+    -- corner stacking seen when both Main and Inside have their own curves.
     local inside = New("Frame", {
         Position = UDim2.fromOffset(1, 1),
         Size = UDim2.new(1, -2, 1, -2),
@@ -1193,8 +1218,6 @@ function AzothUI:CreateWindow(data)
         ClipsDescendants = true,
         ZIndex = 11,
     }, main)
-
-    Corner(inside, Config.Window.Radius - 1)
 
     local header = New("Frame", {
         Size = UDim2.new(1, 0, 0, Config.Window.HeaderHeight),
@@ -1211,8 +1234,8 @@ function AzothUI:CreateWindow(data)
         Enum.Font.GothamBold
     )
 
-    title.Position = UDim2.fromOffset(20, 0)
-    title.Size = UDim2.new(1, -210, 1, 0)
+    title.Position = UDim2.fromOffset(22, 0)
+    title.Size = UDim2.new(1, -180, 1, 0)
 
     local version = Text(
         header,
@@ -1221,12 +1244,12 @@ function AzothUI:CreateWindow(data)
         Config.Theme.SubText
     )
 
-    version.Position = UDim2.new(1, -150, 0, 0)
-    version.Size = UDim2.fromOffset(70, Config.Window.HeaderHeight)
+    version.Position = UDim2.new(1, -145, 0, 0)
+    version.Size = UDim2.fromOffset(65, Config.Window.HeaderHeight)
 
     local minimize = New("TextButton", {
         Size = UDim2.fromOffset(38, 38),
-        Position = UDim2.new(1, -94, 0.5, -18),
+        Position = UDim2.new(1, -92, 0.5, -19),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -1241,7 +1264,7 @@ function AzothUI:CreateWindow(data)
 
     local close = New("TextButton", {
         Size = UDim2.fromOffset(38, 38),
-        Position = UDim2.new(1, -48, 0.5, -18),
+        Position = UDim2.new(1, -48, 0.5, -19),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -1263,15 +1286,6 @@ function AzothUI:CreateWindow(data)
         ZIndex = 16,
     }, inside)
 
-    local headerGlow = New("Frame", {
-        Size = UDim2.new(1, -24, 0, 1),
-        Position = UDim2.fromOffset(12, Config.Window.HeaderHeight - 1),
-        BackgroundColor3 = Config.Theme.Red,
-        BackgroundTransparency = 0.78,
-        BorderSizePixel = 0,
-        ZIndex = 17,
-    }, inside)
-
     local sidebar = New("Frame", {
         Size = UDim2.new(
             0,
@@ -1286,14 +1300,14 @@ function AzothUI:CreateWindow(data)
     }, inside)
 
     New("UIPadding", {
-        PaddingLeft = UDim.new(0, 10),
-        PaddingRight = UDim.new(0, 10),
-        PaddingTop = UDim.new(0, 12),
-        PaddingBottom = UDim.new(0, 12),
+        PaddingLeft = UDim.new(0, 12),
+        PaddingRight = UDim.new(0, 12),
+        PaddingTop = UDim.new(0, 14),
+        PaddingBottom = UDim.new(0, 14),
     }, sidebar)
 
     New("UIListLayout", {
-        Padding = UDim.new(0, 6),
+        Padding = UDim.new(0, 7),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, sidebar)
 
@@ -1304,14 +1318,9 @@ function AzothUI:CreateWindow(data)
         Config.Theme.Muted,
         Enum.Font.GothamBold
     )
+
     sidebarCaption.Size = UDim2.new(1, 0, 0, 18)
     sidebarCaption.LayoutOrder = 0
-    sidebarCaption.TextXAlignment = Enum.TextXAlignment.Left
-
-    local sidebarLayout = sidebar:FindFirstChildOfClass("UIListLayout")
-    if sidebarLayout then
-        sidebarLayout.Padding = UDim.new(0, 6)
-    end
 
     local contentArea = New("Frame", {
         Size = UDim2.new(
@@ -1374,27 +1383,19 @@ function AzothUI:CreateWindow(data)
     MakeDraggable(mini, mini)
 
     --==================================================
-    -- RESIZE HANDLE (bottom-right corner)
+    -- RESIZE GRIP
     --==================================================
-    -- This is a CHILD of `inside` (the rounded, clipped surface), not a
-    -- separate ScreenGui sibling positioned by hand. The old version
-    -- synced its position from Main.AbsolutePosition/AbsoluteSize on
-    -- every Position/Size/Visible change - that manual sync could lag
-    -- a frame behind during drags/resizes, which is exactly what made
-    -- the corner look like it had overlapping straight edges instead of
-    -- a clean curve. Anchoring the handle with AnchorPoint(1,1) lets
-    -- Roblox's own layout engine keep it glued to the corner
-    -- automatically, and insetting it a few pixels keeps every dot
-    -- inside the already-rounded corner instead of trying to hug the
-    -- curve from outside.
+    -- The grip is INSIDE the single rounded/clipped Window surface.
+    -- It is never positioned as a ScreenGui sibling, so it cannot create
+    -- a second square/rounded corner over the real window corner.
 
-    local gripInset = 7
+    local gripInset = 6
 
     local grip = New("TextButton", {
         Name = "ResizeGrip",
         AnchorPoint = Vector2.new(1, 1),
         Position = UDim2.new(1, -gripInset, 1, -gripInset),
-        Size = UDim2.fromOffset(18, 18),
+        Size = UDim2.fromOffset(20, 20),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -1408,11 +1409,10 @@ function AzothUI:CreateWindow(data)
 
     local gripDots = {}
 
-    local function addGripDot(dx, dy)
+    local function addGripDot(x, y)
         local dot = New("Frame", {
-            AnchorPoint = Vector2.new(1, 1),
-            Position = UDim2.new(1, -dx, 1, -dy),
             Size = UDim2.fromOffset(3, 3),
+            Position = UDim2.fromOffset(x, y),
             BackgroundColor3 = Config.Theme.SubText,
             BackgroundTransparency = 0.42,
             BorderSizePixel = 0,
@@ -1421,18 +1421,16 @@ function AzothUI:CreateWindow(data)
         }, grip)
 
         Corner(dot, 2)
-
         table.insert(gripDots, dot)
     end
 
-    -- Classic triangular "resize dots" pattern, fully inside the
-    -- handle's own bounds so nothing pokes past the rounded corner.
-    addGripDot(4, 4)
-    addGripDot(4, 11)
-    addGripDot(11, 4)
-    addGripDot(4, 16)
-    addGripDot(11, 11)
-    addGripDot(16, 4)
+    -- Small triangular resize-dot pattern.
+    addGripDot(13, 13)
+    addGripDot(13, 8)
+    addGripDot(8, 13)
+    addGripDot(13, 3)
+    addGripDot(8, 8)
+    addGripDot(3, 13)
 
     grip.MouseEnter:Connect(function()
         for _, dot in ipairs(gripDots) do
@@ -1468,7 +1466,6 @@ function AzothUI:CreateWindow(data)
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 resizing = false
-
                 if connection then
                     connection:Disconnect()
                 end
@@ -1492,6 +1489,7 @@ function AzothUI:CreateWindow(data)
             Config.Window.MinWidth,
             startingSize.X + delta.X
         )
+
         local newHeight = math.max(
             Config.Window.MinHeight,
             startingSize.Y + delta.Y
