@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.3.0
+-- AZOTHUI v1.3.1
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.3.0"
+AzothUI.Version = "1.3.1"
 
 --==================================================
 -- SERVICES
@@ -256,11 +256,25 @@ local function decodeConfigValue(value, depth)
     end
 
     if value.__azoth_type == "EnumItem" and value.enumType and value.name then
-        local enumName = tostring(value.enumType):match("Enum%.(.+)")
-        local enumObject = enumName and Enum[enumName]
+        local enumTypeString = tostring(value.enumType)
+        local enumName = enumTypeString:match("Enum%.(.+)") or enumTypeString
+
+        -- Robust Enum lookup. Some executors/JSON paths stringify
+        -- EnumType differently, so always normalize the Enum name first.
+        local enumObject = Enum[enumName]
         if enumObject then
             local ok, item = pcall(function()
                 return enumObject[value.name]
+            end)
+            if ok and item then
+                return item
+            end
+        end
+
+        -- Explicit KeyCode fallback.
+        if enumName == "KeyCode" then
+            local ok, item = pcall(function()
+                return Enum.KeyCode[value.name]
             end)
             if ok and item then
                 return item
@@ -1756,6 +1770,234 @@ function WindowMethods:AddTab(data)
     return tab
 end
 
+--==================================================
+-- THEME TAB
+--==================================================
+
+function WindowMethods:CreateThemeTab()
+    if self.ThemeTab and not self.ThemeTab.Destroyed then
+        return self.ThemeTab
+    end
+
+    local button = New("TextButton", {
+        Name = "ThemeTab",
+        Size = UDim2.new(1, 0, 0, 44),
+        BackgroundColor3 = Config.Theme.Sidebar,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "",
+        LayoutOrder = 1000,
+        ZIndex = 20,
+    }, self.Sidebar)
+
+    Corner(button, 9)
+
+    local icon = Text(button, "◆", 12, Config.Theme.SubText)
+    icon.Position = UDim2.fromOffset(9, 0)
+    icon.Size = UDim2.fromOffset(28, 44)
+    icon.TextXAlignment = Enum.TextXAlignment.Center
+
+    local label = Text(button, "Theme", 12, Config.Theme.SubText, Enum.Font.GothamMedium)
+    label.Position = UDim2.fromOffset(48, 0)
+    label.Size = UDim2.new(1, -55, 1, 0)
+
+    local accent = New("Frame", {
+        Size = UDim2.new(0, 3, 1, -14),
+        Position = UDim2.fromOffset(0, 7),
+        BackgroundColor3 = Config.Theme.Red,
+        BorderSizePixel = 0,
+        Visible = false,
+        ZIndex = 21,
+    }, button)
+    Corner(accent, 2)
+
+    local content = New("ScrollingFrame", {
+        Size = UDim2.new(1, -18, 1, -18),
+        Position = UDim2.fromOffset(9, 9),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Config.Theme.Red,
+        ScrollBarImageTransparency = 0.25,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        CanvasSize = UDim2.new(),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        Active = true,
+        Visible = false,
+        ZIndex = 19,
+    }, self.ContentArea)
+
+    New("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, content)
+
+    local heading = Text(content, "THEME", 10, Config.Theme.SubText, Enum.Font.GothamBold)
+    heading.Size = UDim2.new(1, 0, 0, 26)
+    heading.LayoutOrder = 1
+
+    local current = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 52),
+        BackgroundColor3 = Config.Theme.Surface,
+        BorderSizePixel = 0,
+        LayoutOrder = 2,
+    }, content)
+    Corner(current, 9)
+    Border(current)
+
+    local currentLabel = Text(current, "Current Theme", 12, Config.Theme.Text, Enum.Font.GothamMedium)
+    currentLabel.Position = UDim2.fromOffset(15, 0)
+    currentLabel.Size = UDim2.new(0.55, 0, 1, 0)
+
+    local currentValue = Text(current, Config.ThemeName, 11, Config.Theme.SubText)
+    currentValue.Position = UDim2.new(0.55, 0, 0, 0)
+    currentValue.Size = UDim2.new(0.45, -15, 1, 0)
+    currentValue.TextXAlignment = Enum.TextXAlignment.Right
+
+    local function refreshCurrent()
+        currentValue.Text = tostring(AzothUI.Theme)
+    end
+
+    local function addThemeButton(themeName, order)
+        local themeButton = New("TextButton", {
+            Size = UDim2.new(1, 0, 0, 52),
+            BackgroundColor3 = Config.Theme.Surface,
+            BorderSizePixel = 0,
+            AutoButtonColor = false,
+            Text = "",
+            LayoutOrder = order,
+        }, content)
+        Corner(themeButton, 9)
+        Border(themeButton)
+
+        local nameLabel = Text(themeButton, themeName, 13, Config.Theme.Text, Enum.Font.GothamMedium)
+        nameLabel.Position = UDim2.fromOffset(15, 0)
+        nameLabel.Size = UDim2.new(1, -70, 1, 0)
+
+        local check = Text(themeButton, "✓", 14, Config.Theme.Red, Enum.Font.GothamBold)
+        check.Position = UDim2.new(1, -48, 0, 0)
+        check.Size = UDim2.fromOffset(35, 52)
+        check.TextXAlignment = Enum.TextXAlignment.Center
+        check.Visible = AzothUI.Theme == themeName
+
+        themeButton.MouseEnter:Connect(function()
+            Tween(themeButton, 0.1, {BackgroundColor3 = Config.Theme.Surface2})
+        end)
+
+        themeButton.MouseLeave:Connect(function()
+            Tween(themeButton, 0.1, {BackgroundColor3 = Config.Theme.Surface})
+        end)
+
+        themeButton.MouseButton1Click:Connect(function()
+            local ok = AzothUI:SetTheme(themeName)
+            if ok then
+                refreshCurrent()
+                for _, child in ipairs(content:GetChildren()) do
+                    if child:IsA("TextButton") then
+                        local marker = child:FindFirstChildOfClass("TextLabel")
+                        if marker and marker ~= nameLabel then
+                            -- check labels are updated below through named children
+                        end
+                    end
+                end
+                check.Visible = true
+                for _, child in ipairs(content:GetChildren()) do
+                    local marker = child:FindFirstChild("ThemeCheck")
+                    if marker and marker ~= check then
+                        marker.Visible = false
+                    end
+                end
+            end
+        end)
+
+        check.Name = "ThemeCheck"
+        return themeButton
+    end
+
+    addThemeButton("Red", 3)
+    addThemeButton("Dark", 4)
+
+    local info = Text(
+        content,
+        "Theme changes are applied live to the current window.",
+        10,
+        Config.Theme.Muted
+    )
+    info.Size = UDim2.new(1, 0, 0, 40)
+    info.TextWrapped = true
+    info.LayoutOrder = 5
+
+    local tab = {
+        Window = self,
+        Button = button,
+        Accent = accent,
+        Icon = icon,
+        Label = label,
+        Content = content,
+        Order = 6,
+        Destroyed = false,
+        IsThemeTab = true,
+    }
+
+    local function selectThemeTab()
+        for _, other in ipairs(self.Tabs) do
+            if other.Content then
+                other.Content.Visible = false
+            end
+            if other.Accent then
+                other.Accent.Visible = false
+            end
+            if other.Button then
+                other.Button.BackgroundColor3 = Config.Theme.Sidebar
+            end
+            if other.Label then
+                other.Label.TextColor3 = Config.Theme.SubText
+            end
+        end
+
+        for _, other in ipairs({tab}) do
+            other.Content.Visible = true
+            other.Accent.Visible = true
+            other.Button.BackgroundColor3 = Config.Theme.Surface2
+            other.Label.TextColor3 = Config.Theme.Text
+        end
+        self.ActiveTab = tab
+    end
+
+    function tab:Select()
+        selectThemeTab()
+    end
+
+    function tab:SetTitle(value)
+        label.Text = tostring(value or "Theme")
+    end
+
+    function tab:SetIcon(value)
+        icon.Text = tostring(value or "")
+    end
+
+    function tab:SetVisible(value)
+        button.Visible = value == true
+    end
+
+    function tab:Destroy()
+        if self.Destroyed then return end
+        self.Destroyed = true
+        if self.Window.ActiveTab == self then
+            local first = self.Window.Tabs[1]
+            if first then first:Select() end
+        end
+        button:Destroy()
+        content:Destroy()
+        self.Window.ThemeTab = nil
+    end
+
+    button.MouseButton1Click:Connect(selectThemeTab)
+
+    self.ThemeTab = tab
+    return tab
+end
+
 function WindowMethods:RegisterControl(flag, control)
     if not flag or flag == "" or type(control) ~= "table" then
         return control
@@ -2393,6 +2635,12 @@ function AzothUI:CreateWindow(data)
             OnClose = data.OnClose,
         },
     }, WindowMethods)
+
+    -- Theme tab is optional but enabled by default in v1.3.1.
+    -- It is placed after normal tabs via a high LayoutOrder value.
+    if data.ThemeTab ~= false then
+        window:CreateThemeTab()
+    end
 
     --==================================================
     -- DRAG
