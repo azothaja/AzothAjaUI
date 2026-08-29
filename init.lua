@@ -231,17 +231,6 @@ local function MakeDraggable(handle, target)
 end
 
 --==================================================
--- ANTI DUPLICATE
---==================================================
-
-local existing = GuiParent:FindFirstChild("AzothUI")
-if existing then
-    pcall(function()
-        existing:Destroy()
-    end)
-end
-
---==================================================
 -- SCREEN GUI
 --==================================================
 
@@ -1173,14 +1162,23 @@ function AzothUI:CreateWindow(data)
     --==================================================
     -- SINGLE OUTER SHADOW
     --==================================================
-    -- Shadow is a separate visual layer behind the window. It follows the
-    -- exact same center and size as the window and never overlaps the
-    -- window's rounded edge.
+    -- Shadow is a separate visual layer behind the window. It shares the
+    -- EXACT same center anchor as the window (no offset in either axis),
+    -- with equal +4px padding on all four sides. This keeps it perfectly
+    -- concentric with the window's rounded corners at every corner.
+    --
+    -- IMPORTANT: previously this had a +4 Y offset to fake a "drop"
+    -- shadow. That made the top edge padding 0px while the bottom edge
+    -- padding became 8px - asymmetric padding around a symmetric
+    -- UICorner radius, which is exactly what produced the mismatched/
+    -- notched corner at the top of the window. Do not reintroduce an
+    -- offset here without also compensating the corner radius per edge
+    -- (which UICorner cannot do).
 
     local shadow = New("Frame", {
         Name = "WindowShadow",
         Size = UDim2.fromOffset(width + 8, height + 8),
-        Position = UDim2.new(0.5, 0, 0.5, 4),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         BackgroundTransparency = 0.62,
@@ -1188,7 +1186,7 @@ function AzothUI:CreateWindow(data)
         ZIndex = 8,
     }, ScreenGui)
 
-    Corner(shadow, Config.Window.Radius + 3)
+    Corner(shadow, Config.Window.Radius + 4)
 
     local main = New("Frame", {
         Name = "Window",
