@@ -1148,10 +1148,12 @@ function AzothUI:CreateWindow(data)
     --==================================================
     -- SINGLE WINDOW SURFACE
     --==================================================
-    -- The window is now a single rounded/clipped surface.
+    -- CanvasGroup renders the window contents as one group,
+    -- allowing the rounded UICorner to clip the child visuals
+    -- cleanly at the window boundary.
     -- No 1px-offset `inside` frame is used.
 
-    local main = New("Frame", {
+    local main = New("CanvasGroup", {
         Name = "Window",
         Size = UDim2.fromOffset(width, height),
         Position = UDim2.new(0.5, 0, 0.5, 0),
