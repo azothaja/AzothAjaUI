@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.4.3
+-- AZOTHUI v1.4.6
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.4.3"
+AzothUI.Version = "1.4.6"
 
 --==================================================
 -- SERVICES
@@ -53,15 +53,18 @@ local Config = {
     Logo = "rbxassetid://111606226814401",
 }
 
-Config.ThemeName = "Red"
+Config.ThemeName = "Azoth"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
 
--- v1.4.3:
--- * Added Window:SetTheme() / Window:GetTheme() aliases.
--- * Added White, Blue, Purple and gradient theme presets.
--- * Added live gradient support for the main window and sidebar.
--- * Extended RegisterTheme/SetTheme to preserve gradient metadata.
+-- v1.4.6:
+-- * Moved all theme presets out of init.lua.
+-- * Theme presets are now loaded from the external Theme.lua file.
+-- * Theme.lua is fetched from the official AzothAjaUI raw GitHub path.
+-- * Preserved the existing Theme Manager and component API.
+-- * Preserved Red as a legacy compatibility theme.
+-- * Theme.lua failure is handled safely with an empty preset table.
+
 --
 -- v1.4.2:
 -- * Fixed Dropdown popup layering so the menu renders above later components.
@@ -78,137 +81,43 @@ AzothUI.Theme = Config.ThemeName
 -- THEME / CONFIG MANAGER
 --==================================================
 
-local ThemePresets = {
-    Red = {
-        Background = Color3.fromRGB(8, 8, 10),
-        Sidebar = Color3.fromRGB(12, 9, 11),
-        Surface = Color3.fromRGB(18, 12, 15),
-        Surface2 = Color3.fromRGB(28, 15, 19),
-        Border = Color3.fromRGB(75, 28, 38),
-        Red = Color3.fromRGB(220, 32, 48),
-        RedHover = Color3.fromRGB(238, 45, 61),
-        Text = Color3.fromRGB(242, 242, 246),
-        SubText = Color3.fromRGB(155, 150, 158),
-        Muted = Color3.fromRGB(105, 101, 108),
-        White = Color3.fromRGB(255, 255, 255),
-    },
+--==================================================
+-- THEME LIBRARY
+--==================================================
+-- v1.4.6 loads all theme presets from Theme.lua.
+-- Keep Theme.lua in the same GitHub repository/branch
+-- as init.lua.
+--
+-- Expected:
+-- https://raw.githubusercontent.com/azothaja/AzothAjaUI/refs/heads/main/Theme.lua
 
-    Dark = {
-        Background = Color3.fromRGB(10, 11, 14),
-        Sidebar = Color3.fromRGB(15, 16, 20),
-        Surface = Color3.fromRGB(22, 23, 28),
-        Surface2 = Color3.fromRGB(31, 33, 40),
-        Border = Color3.fromRGB(55, 58, 68),
-        Red = Color3.fromRGB(220, 32, 48),
-        RedHover = Color3.fromRGB(238, 45, 61),
-        Text = Color3.fromRGB(242, 243, 247),
-        SubText = Color3.fromRGB(165, 168, 177),
-        Muted = Color3.fromRGB(112, 116, 126),
-        White = Color3.fromRGB(255, 255, 255),
-    },
+local THEME_URL =
+    "https://raw.githubusercontent.com/azothaja/AzothAjaUI/refs/heads/master/Theme.lua"
 
-    White = {
-        Background = Color3.fromRGB(245, 246, 248),
-        Sidebar = Color3.fromRGB(235, 237, 241),
-        Surface = Color3.fromRGB(255, 255, 255),
-        Surface2 = Color3.fromRGB(225, 228, 234),
-        Border = Color3.fromRGB(205, 209, 218),
-        Red = Color3.fromRGB(220, 32, 48),
-        RedHover = Color3.fromRGB(238, 45, 61),
-        Text = Color3.fromRGB(25, 27, 32),
-        SubText = Color3.fromRGB(88, 92, 102),
-        Muted = Color3.fromRGB(125, 129, 139),
-        White = Color3.fromRGB(255, 255, 255),
-    },
+local ThemePresets = {}
 
-    Blue = {
-        Background = Color3.fromRGB(7, 11, 18),
-        Sidebar = Color3.fromRGB(10, 18, 30),
-        Surface = Color3.fromRGB(15, 24, 39),
-        Surface2 = Color3.fromRGB(21, 38, 62),
-        Border = Color3.fromRGB(35, 82, 130),
-        Red = Color3.fromRGB(45, 145, 255),
-        RedHover = Color3.fromRGB(78, 165, 255),
-        Text = Color3.fromRGB(240, 246, 255),
-        SubText = Color3.fromRGB(153, 172, 196),
-        Muted = Color3.fromRGB(104, 121, 143),
-        White = Color3.fromRGB(255, 255, 255),
-    },
+do
+    local ok, result = pcall(function()
+        local source = game:HttpGet(THEME_URL)
+        local loader = loadstring(source)
 
-    Purple = {
-        Background = Color3.fromRGB(12, 8, 19),
-        Sidebar = Color3.fromRGB(18, 11, 29),
-        Surface = Color3.fromRGB(26, 15, 41),
-        Surface2 = Color3.fromRGB(42, 23, 66),
-        Border = Color3.fromRGB(91, 53, 135),
-        Red = Color3.fromRGB(164, 92, 255),
-        RedHover = Color3.fromRGB(184, 121, 255),
-        Text = Color3.fromRGB(246, 242, 255),
-        SubText = Color3.fromRGB(177, 163, 198),
-        Muted = Color3.fromRGB(119, 105, 138),
-        White = Color3.fromRGB(255, 255, 255),
-    },
+        if type(loader) ~= "function" then
+            error("Theme.lua did not return executable Lua code")
+        end
 
-    ["Red Gradient"] = {
-        Background = Color3.fromRGB(12, 7, 12),
-        Sidebar = Color3.fromRGB(20, 9, 14),
-        Surface = Color3.fromRGB(25, 11, 18),
-        Surface2 = Color3.fromRGB(42, 16, 25),
-        Border = Color3.fromRGB(112, 32, 50),
-        Red = Color3.fromRGB(245, 48, 73),
-        RedHover = Color3.fromRGB(255, 80, 99),
-        Text = Color3.fromRGB(246, 242, 245),
-        SubText = Color3.fromRGB(173, 151, 159),
-        Muted = Color3.fromRGB(116, 96, 104),
-        White = Color3.fromRGB(255, 255, 255),
-        Gradient = {
-            Enabled = true,
-            Color1 = Color3.fromRGB(90, 12, 36),
-            Color2 = Color3.fromRGB(235, 32, 58),
-            Rotation = 25,
-        },
-    },
+        return loader()
+    end)
 
-    ["Blue Gradient"] = {
-        Background = Color3.fromRGB(6, 10, 18),
-        Sidebar = Color3.fromRGB(8, 15, 28),
-        Surface = Color3.fromRGB(12, 22, 40),
-        Surface2 = Color3.fromRGB(19, 36, 63),
-        Border = Color3.fromRGB(38, 91, 151),
-        Red = Color3.fromRGB(52, 154, 255),
-        RedHover = Color3.fromRGB(91, 180, 255),
-        Text = Color3.fromRGB(240, 247, 255),
-        SubText = Color3.fromRGB(153, 177, 207),
-        Muted = Color3.fromRGB(101, 126, 158),
-        White = Color3.fromRGB(255, 255, 255),
-        Gradient = {
-            Enabled = true,
-            Color1 = Color3.fromRGB(9, 40, 92),
-            Color2 = Color3.fromRGB(37, 146, 255),
-            Rotation = 25,
-        },
-    },
+    if ok and type(result) == "table" then
+        ThemePresets = result
+        print("[AzothUI] Theme.lua loaded successfully")
+        print("[AzothUI] Theme presets:", #ThemePresets)
+    else
+        warn("[AzothUI] Failed to load Theme.lua:", result)
+        warn("[AzothUI] Theme presets are unavailable.")
+    end
+end
 
-    ["Purple Gradient"] = {
-        Background = Color3.fromRGB(10, 7, 17),
-        Sidebar = Color3.fromRGB(16, 10, 27),
-        Surface = Color3.fromRGB(24, 14, 40),
-        Surface2 = Color3.fromRGB(39, 22, 64),
-        Border = Color3.fromRGB(93, 53, 150),
-        Red = Color3.fromRGB(175, 93, 255),
-        RedHover = Color3.fromRGB(198, 132, 255),
-        Text = Color3.fromRGB(247, 243, 255),
-        SubText = Color3.fromRGB(180, 164, 207),
-        Muted = Color3.fromRGB(121, 105, 145),
-        White = Color3.fromRGB(255, 255, 255),
-        Gradient = {
-            Enabled = true,
-            Color1 = Color3.fromRGB(62, 15, 105),
-            Color2 = Color3.fromRGB(178, 76, 255),
-            Rotation = 25,
-        },
-    },
-}
 
 local ScreenGui
 
