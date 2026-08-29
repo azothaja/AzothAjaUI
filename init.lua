@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.1.0
+-- AZOTHUI v1.1.1
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.1.0"
+AzothUI.Version = "1.1.1"
 
 --==================================================
 -- SERVICES
@@ -199,9 +199,14 @@ local function Hover(object, normalColor, hoverColor, duration)
 end
 
 local function MakeDraggable(handle, target)
-    local dragging = false
+    local state = {
+        Dragging = false,
+        Moved = false,
+    }
+
     local dragStart
     local startPosition
+    local DRAG_THRESHOLD = 5
 
     handle.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1
@@ -209,14 +214,23 @@ local function MakeDraggable(handle, target)
             return
         end
 
-        dragging = true
+        state.Dragging = true
+        state.Moved = false
         dragStart = input.Position
         startPosition = target.Position
 
         local connection
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
+                state.Dragging = false
+
+                -- Keep the click suppressed briefly after an actual drag.
+                -- Roblox can fire MouseButton1Click immediately after InputEnded.
+                if state.Moved then
+                    task.delay(0.20, function()
+                        state.Moved = false
+                    end)
+                end
 
                 if connection then
                     connection:Disconnect()
@@ -226,7 +240,7 @@ local function MakeDraggable(handle, target)
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        if not dragging then
+        if not state.Dragging then
             return
         end
 
@@ -237,6 +251,11 @@ local function MakeDraggable(handle, target)
 
         local delta = input.Position - dragStart
 
+        if math.abs(delta.X) >= DRAG_THRESHOLD
+        or math.abs(delta.Y) >= DRAG_THRESHOLD then
+            state.Moved = true
+        end
+
         target.Position = UDim2.new(
             startPosition.X.Scale,
             startPosition.X.Offset + delta.X,
@@ -244,6 +263,8 @@ local function MakeDraggable(handle, target)
             startPosition.Y.Offset + delta.Y
         )
     end)
+
+    return state
 end
 
 --==================================================
@@ -1779,7 +1800,7 @@ function AzothUI:CreateWindow(data)
 
     local mini = New("ImageButton", {
         Name = "MiniLogo",
-        Size = UDim2.fromOffset(58, 58),
+        Size = UDim2.fromOffset(45, 45),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Config.Theme.Background,
@@ -1791,7 +1812,7 @@ function AzothUI:CreateWindow(data)
         ZIndex = 100,
     }, ScreenGui)
 
-    Corner(mini, 29)
+    Corner(mini, 22.5)
     Border(mini, Config.Theme.Border)
 
     --==================================================
@@ -1818,7 +1839,7 @@ function AzothUI:CreateWindow(data)
     --==================================================
 
     MakeDraggable(header, main)
-    MakeDraggable(mini, mini)
+    local miniDragState = MakeDraggable(mini, mini)
 
     --==================================================
     -- RESIZE GRIP
@@ -1968,6 +1989,13 @@ function AzothUI:CreateWindow(data)
     end)
 
     mini.MouseButton1Click:Connect(function()
+        -- A drag should move the mini logo only; releasing the mouse
+        -- must NOT immediately maximize the window.
+        if miniDragState.Moved then
+            miniDragState.Moved = false
+            return
+        end
+
         window:Maximize()
     end)
 
