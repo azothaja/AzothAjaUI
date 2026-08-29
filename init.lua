@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.4.1
+-- AZOTHUI v1.4.3
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.4.2"
+AzothUI.Version = "1.4.3"
 
 --==================================================
 -- SERVICES
@@ -57,6 +57,12 @@ Config.ThemeName = "Red"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
 
+-- v1.4.3:
+-- * Added Window:SetTheme() / Window:GetTheme() aliases.
+-- * Added White, Blue, Purple and gradient theme presets.
+-- * Added live gradient support for the main window and sidebar.
+-- * Extended RegisterTheme/SetTheme to preserve gradient metadata.
+--
 -- v1.4.2:
 -- * Fixed Dropdown popup layering so the menu renders above later components.
 -- * Moved single Dropdown popup to ScreenGui to avoid ScrollingFrame clipping.
@@ -100,6 +106,108 @@ local ThemePresets = {
         Muted = Color3.fromRGB(112, 116, 126),
         White = Color3.fromRGB(255, 255, 255),
     },
+
+    White = {
+        Background = Color3.fromRGB(245, 246, 248),
+        Sidebar = Color3.fromRGB(235, 237, 241),
+        Surface = Color3.fromRGB(255, 255, 255),
+        Surface2 = Color3.fromRGB(225, 228, 234),
+        Border = Color3.fromRGB(205, 209, 218),
+        Red = Color3.fromRGB(220, 32, 48),
+        RedHover = Color3.fromRGB(238, 45, 61),
+        Text = Color3.fromRGB(25, 27, 32),
+        SubText = Color3.fromRGB(88, 92, 102),
+        Muted = Color3.fromRGB(125, 129, 139),
+        White = Color3.fromRGB(255, 255, 255),
+    },
+
+    Blue = {
+        Background = Color3.fromRGB(7, 11, 18),
+        Sidebar = Color3.fromRGB(10, 18, 30),
+        Surface = Color3.fromRGB(15, 24, 39),
+        Surface2 = Color3.fromRGB(21, 38, 62),
+        Border = Color3.fromRGB(35, 82, 130),
+        Red = Color3.fromRGB(45, 145, 255),
+        RedHover = Color3.fromRGB(78, 165, 255),
+        Text = Color3.fromRGB(240, 246, 255),
+        SubText = Color3.fromRGB(153, 172, 196),
+        Muted = Color3.fromRGB(104, 121, 143),
+        White = Color3.fromRGB(255, 255, 255),
+    },
+
+    Purple = {
+        Background = Color3.fromRGB(12, 8, 19),
+        Sidebar = Color3.fromRGB(18, 11, 29),
+        Surface = Color3.fromRGB(26, 15, 41),
+        Surface2 = Color3.fromRGB(42, 23, 66),
+        Border = Color3.fromRGB(91, 53, 135),
+        Red = Color3.fromRGB(164, 92, 255),
+        RedHover = Color3.fromRGB(184, 121, 255),
+        Text = Color3.fromRGB(246, 242, 255),
+        SubText = Color3.fromRGB(177, 163, 198),
+        Muted = Color3.fromRGB(119, 105, 138),
+        White = Color3.fromRGB(255, 255, 255),
+    },
+
+    ["Red Gradient"] = {
+        Background = Color3.fromRGB(12, 7, 12),
+        Sidebar = Color3.fromRGB(20, 9, 14),
+        Surface = Color3.fromRGB(25, 11, 18),
+        Surface2 = Color3.fromRGB(42, 16, 25),
+        Border = Color3.fromRGB(112, 32, 50),
+        Red = Color3.fromRGB(245, 48, 73),
+        RedHover = Color3.fromRGB(255, 80, 99),
+        Text = Color3.fromRGB(246, 242, 245),
+        SubText = Color3.fromRGB(173, 151, 159),
+        Muted = Color3.fromRGB(116, 96, 104),
+        White = Color3.fromRGB(255, 255, 255),
+        Gradient = {
+            Enabled = true,
+            Color1 = Color3.fromRGB(90, 12, 36),
+            Color2 = Color3.fromRGB(235, 32, 58),
+            Rotation = 25,
+        },
+    },
+
+    ["Blue Gradient"] = {
+        Background = Color3.fromRGB(6, 10, 18),
+        Sidebar = Color3.fromRGB(8, 15, 28),
+        Surface = Color3.fromRGB(12, 22, 40),
+        Surface2 = Color3.fromRGB(19, 36, 63),
+        Border = Color3.fromRGB(38, 91, 151),
+        Red = Color3.fromRGB(52, 154, 255),
+        RedHover = Color3.fromRGB(91, 180, 255),
+        Text = Color3.fromRGB(240, 247, 255),
+        SubText = Color3.fromRGB(153, 177, 207),
+        Muted = Color3.fromRGB(101, 126, 158),
+        White = Color3.fromRGB(255, 255, 255),
+        Gradient = {
+            Enabled = true,
+            Color1 = Color3.fromRGB(9, 40, 92),
+            Color2 = Color3.fromRGB(37, 146, 255),
+            Rotation = 25,
+        },
+    },
+
+    ["Purple Gradient"] = {
+        Background = Color3.fromRGB(10, 7, 17),
+        Sidebar = Color3.fromRGB(16, 10, 27),
+        Surface = Color3.fromRGB(24, 14, 40),
+        Surface2 = Color3.fromRGB(39, 22, 64),
+        Border = Color3.fromRGB(93, 53, 150),
+        Red = Color3.fromRGB(175, 93, 255),
+        RedHover = Color3.fromRGB(198, 132, 255),
+        Text = Color3.fromRGB(247, 243, 255),
+        SubText = Color3.fromRGB(180, 164, 207),
+        Muted = Color3.fromRGB(121, 105, 145),
+        White = Color3.fromRGB(255, 255, 255),
+        Gradient = {
+            Enabled = true,
+            Color1 = Color3.fromRGB(62, 15, 105),
+            Color2 = Color3.fromRGB(178, 76, 255),
+            Rotation = 25,
+        },
+    },
 }
 
 local ScreenGui
@@ -113,7 +221,14 @@ end
 local function copyTheme(theme)
     local result = {}
     for key, value in pairs(theme or {}) do
-        result[key] = value
+        if key == "Gradient" and type(value) == "table" then
+            result[key] = {}
+            for gradientKey, gradientValue in pairs(value) do
+                result[key][gradientKey] = gradientValue
+            end
+        else
+            result[key] = value
+        end
     end
     return result
 end
@@ -146,6 +261,54 @@ local function registerThemeProperty(object, property, value)
 
     ThemeBindings[object] = ThemeBindings[object] or {}
     ThemeBindings[object][property] = key
+end
+
+local function getThemeGradient(theme)
+    local gradient = theme and theme.Gradient
+    if type(gradient) ~= "table" or gradient.Enabled ~= true then
+        return nil
+    end
+
+    if typeof(gradient.Color1) ~= "Color3" or typeof(gradient.Color2) ~= "Color3" then
+        return nil
+    end
+
+    return gradient
+end
+
+local function applyGradientTheme(theme)
+    if not ScreenGui or not ScreenGui.Parent then
+        return
+    end
+
+    local gradient = getThemeGradient(theme)
+    local targets = {
+        ScreenGui:FindFirstChild("Window"),
+        ScreenGui:FindFirstChild("SidebarBackground", true),
+    }
+
+    for _, object in ipairs(targets) do
+        if object and object:IsA("GuiObject") then
+            local existing = object:FindFirstChild("AzothThemeGradient")
+
+            if gradient then
+                if not existing then
+                    existing = Instance.new("UIGradient")
+                    existing.Name = "AzothThemeGradient"
+                    existing.Parent = object
+                end
+
+                existing.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, gradient.Color1),
+                    ColorSequenceKeypoint.new(1, gradient.Color2),
+                })
+                existing.Rotation = tonumber(gradient.Rotation) or 0
+                existing.Enabled = true
+            elseif existing then
+                existing.Enabled = false
+            end
+        end
+    end
 end
 
 local function applyTheme(theme, oldTheme)
@@ -196,6 +359,8 @@ local function applyTheme(theme, oldTheme)
             end
         end
     end
+
+    applyGradientTheme(theme)
 end
 
 local function sanitizeConfigName(name)
@@ -2056,18 +2221,20 @@ function WindowMethods:CreateThemeTab()
         return themeButton
     end
 
-    addThemeButton("Red", 3)
-    addThemeButton("Dark", 4)
+    local themeNames = AzothUI:GetThemes()
+    for index, themeName in ipairs(themeNames) do
+        addThemeButton(themeName, index + 2)
+    end
 
     local info = Text(
         content,
-        "Theme changes are applied live to the current window.",
+        "Theme changes are applied live. Gradient themes affect the window surface and sidebar.",
         10,
         Config.Theme.Muted
     )
-    info.Size = UDim2.new(1, 0, 0, 40)
+    info.Size = UDim2.new(1, 0, 0, 44)
     info.TextWrapped = true
-    info.LayoutOrder = 5
+    info.LayoutOrder = #themeNames + 3
 
     local tab = {
         Window = self,
@@ -2356,6 +2523,18 @@ function WindowMethods:SetSidebarVisible(value)
     if self.SidebarBackground then
         self.SidebarBackground.Visible = value
     end
+end
+
+function WindowMethods:SetTheme(theme)
+    return AzothUI:SetTheme(theme)
+end
+
+function WindowMethods:GetTheme()
+    return AzothUI:GetTheme()
+end
+
+function WindowMethods:GetThemes()
+    return AzothUI:GetThemes()
 end
 
 function WindowMethods:SetTitle(value)
@@ -2784,6 +2963,7 @@ function AzothUI:CreateWindow(data)
     --==================================================
 
     local header = New("Frame", {
+        Name = "Header",
         Size = UDim2.new(1, 0, 0, Config.Window.HeaderHeight),
         BackgroundColor3 = Config.Theme.Background,
         BackgroundTransparency = 1,
@@ -2857,6 +3037,7 @@ function AzothUI:CreateWindow(data)
 
     -- 1. Buat background untuk sidebar yang memiliki UICorner
     local sidebarBg = New("Frame", {
+        Name = "SidebarBackground",
         Size = UDim2.new(
             0,
             Config.Window.SidebarWidth,
@@ -3228,6 +3409,11 @@ function AzothUI:RegisterTheme(name, theme)
     for key, value in pairs(theme) do
         if typeof(value) == "Color3" then
             merged[key] = value
+        elseif key == "Gradient" and type(value) == "table" then
+            merged.Gradient = {}
+            for gradientKey, gradientValue in pairs(value) do
+                merged.Gradient[gradientKey] = gradientValue
+            end
         end
     end
 
@@ -3248,9 +3434,17 @@ function AzothUI:SetTheme(theme)
         themeName = theme
     elseif type(theme) == "table" then
         selected = copyTheme(Config.Theme)
+        -- A custom theme without Gradient explicitly disables the previous
+        -- gradient so switching back to a normal custom theme is predictable.
+        selected.Gradient = nil
         for key, value in pairs(theme) do
             if typeof(value) == "Color3" then
                 selected[key] = value
+            elseif key == "Gradient" and type(value) == "table" then
+                selected.Gradient = {}
+                for gradientKey, gradientValue in pairs(value) do
+                    selected.Gradient[gradientKey] = gradientValue
+                end
             end
         end
         themeName = "Custom"
