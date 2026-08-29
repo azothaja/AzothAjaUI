@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.4.6
+-- AZOTHUI v1.5.0
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.4.6"
+AzothUI.Version = "1.5.0"
 
 --==================================================
 -- SERVICES
@@ -57,6 +57,17 @@ Config.ThemeName = "Azoth"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
 
+-- v1.5.0:
+-- * Added a real Section component with automatic vertical layout.
+-- * AddSection() accepts both a string and a configuration table.
+-- * Added optional Section Description.
+-- * Added collapsible sections with SetOpen/Toggle/IsOpen.
+-- * Section components reuse the existing component API and Flag system.
+-- * Added section-level visibility and destruction helpers.
+-- * Added bottom content padding for cleaner scrolling.
+-- * Preserved the external Theme.lua architecture from v1.4.6.
+-- * Preserved existing components, config, themes, minimize, resize and tab APIs.
+
 -- v1.4.6:
 -- * Moved all theme presets out of init.lua.
 -- * Theme presets are now loaded from the external Theme.lua file.
@@ -89,7 +100,7 @@ AzothUI.Theme = Config.ThemeName
 -- as init.lua.
 --
 -- Expected:
--- https://raw.githubusercontent.com/azothaja/AzothAjaUI/refs/heads/main/Theme.lua
+-- https://raw.githubusercontent.com/azothaja/AzothAjaUI/refs/heads/master/Theme.lua
 
 local THEME_URL =
     "https://raw.githubusercontent.com/azothaja/AzothAjaUI/refs/heads/master/Theme.lua"
@@ -650,21 +661,254 @@ ScreenGui = New("ScreenGui", {
 local TabMethods = {}
 TabMethods.__index = TabMethods
 
-function TabMethods:AddSection(title)
-    local label = Text(
-        self.Content,
-        string.upper(title or "SECTION"),
-        10,
-        Config.Theme.SubText,
-        Enum.Font.GothamBold
+function TabMethods:AddSection(data)
+    -- v1.5.0 supports both:
+    --     AddSection("Title")
+    -- and:
+    --     AddSection({
+    --         Title = "Title",
+    --         Description = "Description",
+    --         Collapsible = true,
+    --         DefaultOpen = true,
+    --     })
+
+    if type(data) == "string" then
+        data = {
+            Title = data,
+        }
+    else
+        data = data or {}
+    end
+
+    local titleText = tostring(
+        data.Title
+        or data.Name
+        or "SECTION"
     )
 
-    label.Size = UDim2.new(1, 0, 0, 26)
-    label.LayoutOrder = self.Order
+    local collapsible = data.Collapsible == true
+    local opened = data.DefaultOpen ~= false
+
+    --==================================================
+    -- SECTION ROOT
+    --==================================================
+
+    local section = New("Frame", {
+        Name = "Section",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        LayoutOrder = self.Order,
+        ClipsDescendants = false,
+    }, self.Content)
 
     self.Order += 1
 
-    return label
+    --==================================================
+    -- SECTION HEADER
+    --==================================================
+
+    local headerHeight = data.Description
+        and 48
+        or 34
+
+    local header = New("TextButton", {
+        Name = "Header",
+        Size = UDim2.new(1, 0, 0, headerHeight),
+        BackgroundColor3 = Config.Theme.Surface,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "",
+        LayoutOrder = 1,
+    }, section)
+
+    Corner(header, 8)
+    Border(header)
+
+    local title = Text(
+        header,
+        titleText,
+        11,
+        Config.Theme.Text,
+        Enum.Font.GothamBold
+    )
+
+    title.Position = UDim2.fromOffset(
+        collapsible and 32 or 13,
+        0
+    )
+
+    title.Size = UDim2.new(
+        1,
+        collapsible and -52 or -26,
+        data.Description and 28 or headerHeight,
+        0
+    )
+
+    if data.Description then
+        title.Position = UDim2.fromOffset(
+            collapsible and 32 or 13,
+            2
+        )
+        title.Size = UDim2.new(1, -55, 0, 24)
+
+        local description = Text(
+            header,
+            tostring(data.Description),
+            9,
+            Config.Theme.SubText
+        )
+
+        description.Position = UDim2.fromOffset(
+            collapsible and 32 or 13,
+            25
+        )
+
+        description.Size = UDim2.new(
+            1,
+            collapsible and -52 or -26,
+            18,
+            0
+        )
+    end
+
+    local arrow
+
+    if collapsible then
+        arrow = Text(
+            header,
+            opened and "▼" or "▶",
+            10,
+            Config.Theme.SubText,
+            Enum.Font.GothamBold
+        )
+
+        arrow.Position = UDim2.fromOffset(13, 0)
+        arrow.Size = UDim2.fromOffset(14, headerHeight)
+        arrow.TextXAlignment = Enum.TextXAlignment.Center
+    end
+
+    --==================================================
+    -- SECTION BODY
+    --==================================================
+
+    local body = New("Frame", {
+        Name = "Content",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Visible = opened,
+        LayoutOrder = 2,
+    }, section)
+
+    New("UIPadding", {
+        PaddingTop = UDim.new(0, 7),
+        PaddingBottom = UDim.new(0, 1),
+    }, body)
+
+    New("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, body)
+
+    -- The component methods are shared with TabMethods.
+    -- Giving the section the same Content/Window contract lets
+    -- Button/Toggle/Slider/Dropdown/Input/Keybind/etc. work
+    -- without duplicating their implementations.
+    local sectionObject = setmetatable({
+        Window = self.Window,
+        Tab = self,
+        Section = nil,
+        Content = body,
+        Order = 1,
+        Destroyed = false,
+        Root = section,
+        Header = header,
+        Body = body,
+        Title = title,
+        Collapsible = collapsible,
+        Opened = opened,
+    }, TabMethods)
+
+    sectionObject.Section = sectionObject
+
+    local function setOpen(value)
+        opened = value == true
+        sectionObject.Opened = opened
+
+        body.Visible = opened
+
+        if arrow then
+            arrow.Text = opened and "▼" or "▶"
+        end
+
+        -- A section with a fixed-size header can be clicked rapidly
+        -- without changing the parent tab's active state.
+        Tween(header, 0.12, {
+            BackgroundColor3 = Config.Theme.Surface,
+        })
+    end
+
+    if collapsible then
+        header.MouseEnter:Connect(function()
+            Tween(header, 0.12, {
+                BackgroundColor3 = Config.Theme.Surface2,
+            })
+        end)
+
+        header.MouseLeave:Connect(function()
+            Tween(header, 0.12, {
+                BackgroundColor3 = Config.Theme.Surface,
+            })
+        end)
+
+        header.MouseButton1Click:Connect(function()
+            setOpen(not opened)
+        end)
+    end
+
+    function sectionObject:SetOpen(value)
+        if not self.Collapsible then
+            return false
+        end
+
+        setOpen(value)
+        return true
+    end
+
+    function sectionObject:Toggle()
+        if not self.Collapsible then
+            return false
+        end
+
+        setOpen(not opened)
+        return opened
+    end
+
+    function sectionObject:IsOpen()
+        return opened
+    end
+
+    function sectionObject:SetTitle(value)
+        title.Text = tostring(value or "")
+    end
+
+    function sectionObject:SetVisible(value)
+        section.Visible = value == true
+    end
+
+    function sectionObject:Destroy()
+        if self.Destroyed then
+            return
+        end
+
+        self.Destroyed = true
+        section:Destroy()
+    end
+
+    return sectionObject
 end
 
 function TabMethods:AddSeparator()
@@ -1893,6 +2137,10 @@ function WindowMethods:AddTab(data)
         ZIndex = 19,
     }, self.ContentArea)
 
+    New("UIPadding", {
+        PaddingBottom = UDim.new(0, 8),
+    }, content)
+
     New("UIListLayout", {
         Padding = UDim.new(0, 8),
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -2472,6 +2720,20 @@ function WindowMethods:SetSize(width, height)
     )
 
     self.Main.Size = UDim2.fromOffset(width, height)
+
+    -- Force a layout refresh for responsive ScrollingFrames after resize.
+    task.defer(function()
+        if self.ContentArea then
+            for _, child in ipairs(self.ContentArea:GetChildren()) do
+                if child:IsA("ScrollingFrame") then
+                    child.CanvasPosition = Vector2.new(
+                        child.CanvasPosition.X,
+                        child.CanvasPosition.Y
+                    )
+                end
+            end
+        end
+    end)
 end
 
 function WindowMethods:GetSize()
