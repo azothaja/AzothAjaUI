@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.2.0
+-- AZOTHUI v1.3.0
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.2.0"
+AzothUI.Version = "1.3.0"
 
 --==================================================
 -- SERVICES
@@ -15,6 +15,7 @@ AzothUI.Version = "1.2.0"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -52,7 +53,236 @@ local Config = {
     Logo = "rbxassetid://111606226814401",
 }
 
+Config.ThemeName = "Red"
 AzothUI.Config = Config
+AzothUI.Theme = Config.ThemeName
+
+--==================================================
+-- THEME / CONFIG MANAGER
+--==================================================
+
+local ThemePresets = {
+    Red = {
+        Background = Color3.fromRGB(8, 8, 10),
+        Sidebar = Color3.fromRGB(12, 9, 11),
+        Surface = Color3.fromRGB(18, 12, 15),
+        Surface2 = Color3.fromRGB(28, 15, 19),
+        Border = Color3.fromRGB(75, 28, 38),
+        Red = Color3.fromRGB(220, 32, 48),
+        RedHover = Color3.fromRGB(238, 45, 61),
+        Text = Color3.fromRGB(242, 242, 246),
+        SubText = Color3.fromRGB(155, 150, 158),
+        Muted = Color3.fromRGB(105, 101, 108),
+        White = Color3.fromRGB(255, 255, 255),
+    },
+
+    Dark = {
+        Background = Color3.fromRGB(10, 11, 14),
+        Sidebar = Color3.fromRGB(15, 16, 20),
+        Surface = Color3.fromRGB(22, 23, 28),
+        Surface2 = Color3.fromRGB(31, 33, 40),
+        Border = Color3.fromRGB(55, 58, 68),
+        Red = Color3.fromRGB(125, 132, 150),
+        RedHover = Color3.fromRGB(150, 157, 175),
+        Text = Color3.fromRGB(242, 243, 247),
+        SubText = Color3.fromRGB(165, 168, 177),
+        Muted = Color3.fromRGB(112, 116, 126),
+        White = Color3.fromRGB(255, 255, 255),
+    },
+}
+
+local ScreenGui
+
+local ThemeBindings = {}
+local RegisteredThemes = {}
+for name, theme in pairs(ThemePresets) do
+    RegisteredThemes[name] = theme
+end
+
+local function copyTheme(theme)
+    local result = {}
+    for key, value in pairs(theme or {}) do
+        result[key] = value
+    end
+    return result
+end
+
+local function colorEquals(a, b)
+    return typeof(a) == "Color3" and typeof(b) == "Color3"
+        and math.abs(a.R - b.R) < 0.0001
+        and math.abs(a.G - b.G) < 0.0001
+        and math.abs(a.B - b.B) < 0.0001
+end
+
+local function findThemeKey(color)
+    for key, themeColor in pairs(Config.Theme) do
+        if colorEquals(color, themeColor) then
+            return key
+        end
+    end
+    return nil
+end
+
+local function registerThemeProperty(object, property, value)
+    if typeof(value) ~= "Color3" then
+        return
+    end
+
+    local key = findThemeKey(value)
+    if not key then
+        return
+    end
+
+    ThemeBindings[object] = ThemeBindings[object] or {}
+    ThemeBindings[object][property] = key
+end
+
+local function applyTheme(theme, oldTheme)
+    -- First update registered semantic bindings.
+    for object, bindings in pairs(ThemeBindings) do
+        if object and object.Parent then
+            for property, key in pairs(bindings) do
+                if theme[key] ~= nil then
+                    pcall(function()
+                        object[property] = theme[key]
+                    end)
+                end
+            end
+        else
+            ThemeBindings[object] = nil
+        end
+    end
+
+    -- Also catch colors assigned directly after creation (for example
+    -- active tab states) by comparing the live GUI against the previous theme.
+    if ScreenGui and ScreenGui.Parent and oldTheme then
+        local function replaceProperty(object, property)
+            local ok, current = pcall(function()
+                return object[property]
+            end)
+            if not ok or typeof(current) ~= "Color3" then
+                return
+            end
+
+            for key, oldColor in pairs(oldTheme) do
+                if colorEquals(current, oldColor) and theme[key] ~= nil then
+                    pcall(function()
+                        object[property] = theme[key]
+                    end)
+                    break
+                end
+            end
+        end
+
+        for _, object in ipairs(ScreenGui:GetDescendants()) do
+            replaceProperty(object, "BackgroundColor3")
+            replaceProperty(object, "TextColor3")
+            replaceProperty(object, "PlaceholderColor3")
+            replaceProperty(object, "ImageColor3")
+            replaceProperty(object, "ScrollBarImageColor3")
+            if object:IsA("UIStroke") then
+                replaceProperty(object, "Color")
+            end
+        end
+    end
+end
+
+local function sanitizeConfigName(name)
+    name = tostring(name or "Default")
+    name = name:gsub("[^%w%-%._]", "_")
+    if name == "" then
+        name = "Default"
+    end
+    return "AzothUI_" .. name .. ".json"
+end
+
+local function hasFileApi()
+    return type(isfile) == "function"
+        and type(readfile) == "function"
+        and type(writefile) == "function"
+end
+
+local function encodeConfigValue(value, depth)
+    depth = depth or 0
+    if depth > 8 then
+        return nil
+    end
+
+    local valueType = typeof(value)
+
+    if valueType == "EnumItem" then
+        return {
+            __azoth_type = "EnumItem",
+            enumType = tostring(value.EnumType),
+            name = value.Name,
+        }
+    end
+
+    if valueType == "Color3" then
+        return {
+            __azoth_type = "Color3",
+            r = value.R,
+            g = value.G,
+            b = value.B,
+        }
+    end
+
+    if type(value) == "table" then
+        local result = {}
+        for key, item in pairs(value) do
+            local encoded = encodeConfigValue(item, depth + 1)
+            if encoded ~= nil then
+                result[tostring(key)] = encoded
+            end
+        end
+        return result
+    end
+
+    if type(value) == "string" or type(value) == "number" or type(value) == "boolean" then
+        return value
+    end
+
+    return nil
+end
+
+local function decodeConfigValue(value, depth)
+    depth = depth or 0
+    if depth > 8 then
+        return nil
+    end
+
+    if type(value) ~= "table" then
+        return value
+    end
+
+    if value.__azoth_type == "EnumItem" and value.enumType and value.name then
+        local enumName = tostring(value.enumType):match("Enum%.(.+)")
+        local enumObject = enumName and Enum[enumName]
+        if enumObject then
+            local ok, item = pcall(function()
+                return enumObject[value.name]
+            end)
+            if ok and item then
+                return item
+            end
+        end
+    end
+
+    if value.__azoth_type == "Color3" then
+        return Color3.new(
+            tonumber(value.r) or 0,
+            tonumber(value.g) or 0,
+            tonumber(value.b) or 0
+        )
+    end
+
+    local result = {}
+    for key, item in pairs(value) do
+        result[key] = decodeConfigValue(item, depth + 1)
+    end
+    return result
+end
+
 
 --==================================================
 -- SAFE GUI PARENT
@@ -134,6 +364,7 @@ local function New(className, properties, parent)
         pcall(function()
             object[property] = value
         end)
+        registerThemeProperty(object, property, value)
     end
 
     object.Parent = parent
@@ -150,6 +381,7 @@ end
 local function Border(object, color, thickness, transparency)
     local stroke = Instance.new("UIStroke")
     stroke.Color = color or Config.Theme.Border
+    registerThemeProperty(stroke, "Color", stroke.Color)
     stroke.Thickness = thickness or 1
     stroke.Transparency = transparency or 0
     stroke.LineJoinMode = Enum.LineJoinMode.Round
@@ -185,15 +417,18 @@ local function Text(parent, value, size, color, font)
 end
 
 local function Hover(object, normalColor, hoverColor, duration)
+    local normalKey = findThemeKey(normalColor)
+    local hoverKey = findThemeKey(hoverColor)
+
     object.MouseEnter:Connect(function()
         Tween(object, duration or 0.12, {
-            BackgroundColor3 = hoverColor
+            BackgroundColor3 = (hoverKey and Config.Theme[hoverKey]) or hoverColor
         })
     end)
 
     object.MouseLeave:Connect(function()
         Tween(object, duration or 0.12, {
-            BackgroundColor3 = normalColor
+            BackgroundColor3 = (normalKey and Config.Theme[normalKey]) or normalColor
         })
     end)
 end
@@ -271,7 +506,7 @@ end
 -- SCREEN GUI
 --==================================================
 
-local ScreenGui = New("ScreenGui", {
+ScreenGui = New("ScreenGui", {
     Name = "AzothUI",
     ResetOnSpawn = false,
     IgnoreGuiInset = true,
@@ -527,7 +762,7 @@ function TabMethods:AddToggle(data)
         setValue(not value, true)
     end)
 
-    return {
+    local control = {
         Instance = row,
         GetValue = function()
             return value
@@ -536,6 +771,12 @@ function TabMethods:AddToggle(data)
             setValue(newValue, fire)
         end,
     }
+
+    if data.Flag then
+        self.Window:RegisterControl(data.Flag, control)
+    end
+
+    return control
 end
 
 function TabMethods:AddSlider(data)
@@ -676,7 +917,7 @@ function TabMethods:AddSlider(data)
         end
     end)
 
-    return {
+    local control = {
         Instance = row,
         GetValue = function()
             return value
@@ -685,6 +926,12 @@ function TabMethods:AddSlider(data)
             apply(newValue, fire)
         end,
     }
+
+    if data.Flag then
+        self.Window:RegisterControl(data.Flag, control)
+    end
+
+    return control
 end
 
 function TabMethods:AddDropdown(data)
@@ -802,7 +1049,7 @@ function TabMethods:AddDropdown(data)
         end
     end)
 
-    return {
+    local control = {
         Instance = row,
         GetValue = function()
             return current
@@ -844,6 +1091,12 @@ function TabMethods:AddDropdown(data)
             menu.Size = UDim2.fromOffset(190, 0)
         end,
     }
+
+    if data.Flag then
+        self.Window:RegisterControl(data.Flag, control)
+    end
+
+    return control
 end
 
 function TabMethods:AddInput(data)
@@ -899,7 +1152,7 @@ function TabMethods:AddInput(data)
         end
     end)
 
-    return {
+    local control = {
         Instance = row,
         GetValue = function()
             return value
@@ -913,6 +1166,12 @@ function TabMethods:AddInput(data)
             end
         end,
     }
+
+    if data.Flag then
+        self.Window:RegisterControl(data.Flag, control)
+    end
+
+    return control
 end
 
 function TabMethods:AddParagraph(data)
@@ -1088,7 +1347,7 @@ function TabMethods:AddKeybind(data)
 
     Hover(keyButton, Config.Theme.Surface2, Config.Theme.Red, 0.1)
 
-    return {
+    local control = {
         Instance = row,
         GetValue = function()
             return current
@@ -1103,6 +1362,12 @@ function TabMethods:AddKeybind(data)
             row:Destroy()
         end,
     }
+
+    if data.Flag then
+        self.Window:RegisterControl(data.Flag, control)
+    end
+
+    return control
 end
 
 function TabMethods:AddMultiDropdown(data)
@@ -1271,7 +1536,7 @@ function TabMethods:AddMultiDropdown(data)
 
     updateText()
 
-    return {
+    local control = {
         Instance = row,
         GetValue = function()
             local result = {}
@@ -1312,6 +1577,12 @@ function TabMethods:AddMultiDropdown(data)
             menu.Size = UDim2.fromOffset(190, 0)
         end,
     }
+
+    if data.Flag then
+        self.Window:RegisterControl(data.Flag, control)
+    end
+
+    return control
 end
 
 function TabMethods:SetTitle(value)
@@ -1485,6 +1756,145 @@ function WindowMethods:AddTab(data)
     return tab
 end
 
+function WindowMethods:RegisterControl(flag, control)
+    if not flag or flag == "" or type(control) ~= "table" then
+        return control
+    end
+
+    self.Controls = self.Controls or {}
+    local key = tostring(flag)
+    self.Controls[key] = control
+
+    if self.PendingConfig and self.PendingConfig[key] ~= nil
+    and type(control.SetValue) == "function" then
+        local value = decodeConfigValue(self.PendingConfig[key])
+        pcall(control.SetValue, control, value, self.ConfigFireCallbacks == true)
+        self.PendingConfig[key] = nil
+    end
+
+    return control
+end
+
+function WindowMethods:GetConfigData()
+    local data = {}
+
+    for flag, control in pairs(self.Controls or {}) do
+        if type(control.GetValue) == "function" then
+            local ok, value = pcall(control.GetValue, control)
+            if ok then
+                data[flag] = encodeConfigValue(value)
+            end
+        end
+    end
+
+    return data
+end
+
+function WindowMethods:ApplyConfigData(data, fire)
+    if type(data) ~= "table" then
+        return false
+    end
+
+    for flag, encodedValue in pairs(data) do
+        local control = self.Controls and self.Controls[tostring(flag)]
+        if control and type(control.SetValue) == "function" then
+            local value = decodeConfigValue(encodedValue)
+            pcall(control.SetValue, control, value, fire == true)
+        end
+    end
+
+    return true
+end
+
+function WindowMethods:SaveConfig(name, extraData)
+    if not hasFileApi() then
+        return false, "File API unavailable"
+    end
+
+    local payload = {
+        Version = AzothUI.Version,
+        Theme = Config.ThemeName,
+        Controls = self:GetConfigData(),
+    }
+
+    if type(extraData) == "table" then
+        for key, value in pairs(extraData) do
+            payload[key] = encodeConfigValue(value)
+        end
+    end
+
+    local ok, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+    if not ok then
+        return false, "JSON encode failed"
+    end
+
+    local filename = sanitizeConfigName(name or self.ConfigName or "Default")
+    local writeOk, writeErr = pcall(writefile, filename, encoded)
+    if not writeOk then
+        return false, tostring(writeErr or "writefile failed")
+    end
+
+    return true, filename
+end
+
+function WindowMethods:LoadConfig(name, fire)
+    if not hasFileApi() then
+        return false, "File API unavailable"
+    end
+
+    local filename = sanitizeConfigName(name or self.ConfigName or "Default")
+    if type(isfile) == "function" and not isfile(filename) then
+        return false, "Config not found"
+    end
+
+    local okRead, raw = pcall(readfile, filename)
+    if not okRead then
+        return false, tostring(raw)
+    end
+
+    local okDecode, payload = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not okDecode or type(payload) ~= "table" then
+        return false, "Invalid config JSON"
+    end
+
+    -- Accept the v1.2-style flat config format as well.
+    local controls = payload.Controls or payload
+    if payload.Controls then
+        if type(payload.Theme) == "string" then
+            AzothUI:SetTheme(payload.Theme)
+        end
+    end
+
+    self.PendingConfig = controls
+    self:ApplyConfigData(controls, fire)
+    return true, payload
+end
+
+function WindowMethods:HasConfig(name)
+    if type(isfile) ~= "function" then
+        return false
+    end
+    return isfile(sanitizeConfigName(name or self.ConfigName or "Default")) == true
+end
+
+function WindowMethods:DeleteConfig(name)
+    if type(isfile) ~= "function" or type(delfile) ~= "function" then
+        return false, "File API unavailable"
+    end
+
+    local filename = sanitizeConfigName(name or self.ConfigName or "Default")
+    if not isfile(filename) then
+        return false, "Config not found"
+    end
+
+    local ok, err = pcall(delfile, filename)
+    if not ok then
+        return false, tostring(err or "delfile failed")
+    end
+
+    return true
+end
+
 function WindowMethods:SelectTab(tab)
     if not tab then
         return
@@ -1591,6 +2001,12 @@ end
 function WindowMethods:Close()
     if self.Destroyed then
         return
+    end
+
+    if self.AutoSaveConfig then
+        pcall(function()
+            self:SaveConfig(self.ConfigName)
+        end)
     end
 
     self.Destroyed = true
@@ -1967,6 +2383,10 @@ function AzothUI:CreateWindow(data)
         ActiveTab = nil,
         Destroyed = false,
         Connections = {},
+        Controls = {},
+        ConfigName = data.ConfigName or (type(data.Config) == "table" and data.Config.Name) or "Default",
+        AutoSaveConfig = type(data.Config) == "table" and data.Config.AutoSave == true,
+        ConfigFireCallbacks = type(data.Config) == "table" and data.Config.FireCallbacks == true,
         Callbacks = {
             OnMinimize = data.OnMinimize,
             OnMaximize = data.OnMaximize,
@@ -2143,7 +2563,26 @@ function AzothUI:CreateWindow(data)
         window:Close()
     end)
 
+    -- Optional config behavior. Disabled by default so existing scripts
+    -- remain unchanged.
+    if type(data.Config) == "table" then
+        local configData = data.Config
+        if configData.AutoLoad == true then
+            task.defer(function()
+                window:LoadConfig(configData.Name or window.ConfigName, configData.FireCallbacks == true)
+            end)
+        end
+
+    end
+
     window.Capabilities = {
+        FileAPI = hasFileApi(),
+        IsFile = type(isfile) == "function",
+        ReadFile = type(readfile) == "function",
+        WriteFile = type(writefile) == "function",
+        DeleteFile = type(delfile) == "function",
+        ThemeSystem = true,
+        ConfigSystem = true,
         PlayerGui = GuiParent == LocalPlayer:FindFirstChildOfClass("PlayerGui"),
         GetHui = type(gethui) == "function",
         Loadstring = type(loadstring) == "function",
@@ -2159,6 +2598,133 @@ end
 -- FRAMEWORK HELPERS
 --==================================================
 
+function AzothUI:GetTheme()
+    return copyTheme(Config.Theme)
+end
+
+function AzothUI:RegisterTheme(name, theme)
+    name = tostring(name or "")
+    if name == "" or type(theme) ~= "table" then
+        return false, "Invalid theme"
+    end
+
+    local merged = copyTheme(Config.Theme)
+    for key, value in pairs(theme) do
+        if typeof(value) == "Color3" then
+            merged[key] = value
+        end
+    end
+
+    RegisteredThemes[name] = merged
+    return true
+end
+
+function AzothUI:SetTheme(theme)
+    local selected
+
+    local themeName
+
+    if type(theme) == "string" then
+        selected = RegisteredThemes[theme]
+        if not selected then
+            return false, "Unknown theme: " .. theme
+        end
+        themeName = theme
+    elseif type(theme) == "table" then
+        selected = copyTheme(Config.Theme)
+        for key, value in pairs(theme) do
+            if typeof(value) == "Color3" then
+                selected[key] = value
+            end
+        end
+        themeName = "Custom"
+    else
+        return false, "Theme must be a name or table"
+    end
+
+    local oldTheme = copyTheme(Config.Theme)
+    Config.Theme = copyTheme(selected)
+    Config.ThemeName = themeName or "Custom"
+    AzothUI.Theme = Config.ThemeName
+    applyTheme(Config.Theme, oldTheme)
+    return true
+end
+
+function AzothUI:GetThemes()
+    local names = {}
+    for name in pairs(RegisteredThemes) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    return names
+end
+
+function AzothUI:SaveConfig(name, data)
+    if not hasFileApi() then
+        return false, "File API unavailable"
+    end
+
+    local encodedData = encodeConfigValue(data or {})
+    local ok, encoded = pcall(HttpService.JSONEncode, HttpService, encodedData)
+    if not ok then
+        return false, "JSON encode failed"
+    end
+
+    local filename = sanitizeConfigName(name or "Default")
+    local writeOk, err = pcall(writefile, filename, encoded)
+    if not writeOk then
+        return false, tostring(err or "writefile failed")
+    end
+
+    return true, filename
+end
+
+function AzothUI:LoadConfig(name)
+    if not hasFileApi() then
+        return false, "File API unavailable"
+    end
+
+    local filename = sanitizeConfigName(name or "Default")
+    if type(isfile) == "function" and not isfile(filename) then
+        return false, "Config not found"
+    end
+
+    local okRead, raw = pcall(readfile, filename)
+    if not okRead then
+        return false, tostring(raw)
+    end
+
+    local okDecode, data = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not okDecode or type(data) ~= "table" then
+        return false, "Invalid config JSON"
+    end
+
+    return true, decodeConfigValue(data)
+end
+
+function AzothUI:HasConfig(name)
+    return type(isfile) == "function"
+        and isfile(sanitizeConfigName(name or "Default")) == true
+end
+
+function AzothUI:DeleteConfig(name)
+    if type(isfile) ~= "function" or type(delfile) ~= "function" then
+        return false, "File API unavailable"
+    end
+
+    local filename = sanitizeConfigName(name or "Default")
+    if not isfile(filename) then
+        return false, "Config not found"
+    end
+
+    local ok, err = pcall(delfile, filename)
+    if not ok then
+        return false, tostring(err or "delfile failed")
+    end
+
+    return true
+end
+
 function AzothUI:GetParent()
     return GuiParent
 end
@@ -2172,6 +2738,13 @@ function AzothUI:GetCapabilities()
         Loadstring = type(loadstring) == "function",
         HookFunction = type(hookfunction) == "function",
         NewCClosure = type(newcclosure) == "function",
+        FileAPI = hasFileApi(),
+        IsFile = type(isfile) == "function",
+        ReadFile = type(readfile) == "function",
+        WriteFile = type(writefile) == "function",
+        DeleteFile = type(delfile) == "function",
+        ThemeSystem = true,
+        ConfigSystem = true,
     }) do
         result[key] = value
     end
