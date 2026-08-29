@@ -1126,6 +1126,10 @@ end
 -- CREATE WINDOW
 --==================================================
 
+--==================================================
+-- CREATE WINDOW
+--==================================================
+
 function AzothUI:CreateWindow(data)
     data = data or {}
 
@@ -1148,12 +1152,9 @@ function AzothUI:CreateWindow(data)
     --==================================================
     -- SINGLE WINDOW SURFACE
     --==================================================
-    -- CanvasGroup renders the window contents as one group,
-    -- allowing the rounded UICorner to clip the child visuals
-    -- cleanly at the window boundary.
-    -- No 1px-offset `inside` frame is used.
-
-    local main = New("CanvasGroup", {
+    -- Kita kembalikan ke Frame karena CanvasGroup rusak di banyak executor.
+    
+    local main = New("Frame", {
         Name = "Window",
         Size = UDim2.fromOffset(width, height),
         Position = UDim2.new(0.5, 0, 0.5, 0),
@@ -1165,9 +1166,6 @@ function AzothUI:CreateWindow(data)
     }, ScreenGui)
 
     Corner(main, Config.Window.Radius)
-
-    -- UIStroke provides the outer border without introducing
-    -- another rounded frame underneath/inside the window.
     Border(main, Config.Theme.Border, 1, 0)
 
     --==================================================
@@ -1243,10 +1241,11 @@ function AzothUI:CreateWindow(data)
     }, main)
 
     --==================================================
-    -- SIDEBAR
+    -- SIDEBAR (FOOLPROOF CORNER METHOD)
     --==================================================
 
-    local sidebar = New("Frame", {
+    -- 1. Buat background untuk sidebar yang memiliki UICorner
+    local sidebarBg = New("Frame", {
         Size = UDim2.new(
             0,
             Config.Window.SidebarWidth,
@@ -1258,6 +1257,34 @@ function AzothUI:CreateWindow(data)
         BorderSizePixel = 0,
         ZIndex = 14,
     }, main)
+
+    Corner(sidebarBg, Config.Window.Radius)
+
+    -- 2. Tambal sudut ATAS sidebar agar menjadi kotak siku (bukan lengkung)
+    New("Frame", {
+        Size = UDim2.new(1, 0, 0, Config.Window.Radius),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Config.Theme.Sidebar,
+        BorderSizePixel = 0,
+        ZIndex = 14,
+    }, sidebarBg)
+
+    -- 3. Tambal sudut KANAN sidebar agar tersambung rata dengan konten
+    New("Frame", {
+        Size = UDim2.new(0, Config.Window.Radius, 1, 0),
+        Position = UDim2.new(1, -Config.Window.Radius, 0, 0),
+        BackgroundColor3 = Config.Theme.Sidebar,
+        BorderSizePixel = 0,
+        ZIndex = 14,
+    }, sidebarBg)
+
+    -- 4. Container asli untuk isi menu (dibuat transparan)
+    local sidebar = New("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 15,
+    }, sidebarBg)
 
     New("UIPadding", {
         PaddingLeft = UDim.new(0, 12),
@@ -1285,7 +1312,7 @@ function AzothUI:CreateWindow(data)
     --==================================================
     -- CONTENT
     --==================================================
-
+    -- Dibuat transparan agar mewarisi lengkungan & warna sempurna dari `main`
     local contentArea = New("Frame", {
         Size = UDim2.new(
             1,
@@ -1297,7 +1324,7 @@ function AzothUI:CreateWindow(data)
             Config.Window.SidebarWidth,
             Config.Window.HeaderHeight
         ),
-        BackgroundColor3 = Config.Theme.Background,
+        BackgroundTransparency = 1, 
         BorderSizePixel = 0,
         ClipsDescendants = true,
         ZIndex = 13,
@@ -1352,8 +1379,6 @@ function AzothUI:CreateWindow(data)
     --==================================================
     -- RESIZE GRIP
     --==================================================
-    -- The grip is a child of the same rounded Window surface.
-    -- It cannot create a second corner/border layer.
 
     local gripInset = 6
 
@@ -1390,7 +1415,6 @@ function AzothUI:CreateWindow(data)
         table.insert(gripDots, dot)
     end
 
-    -- Small triangular resize-dot pattern.
     addGripDot(13, 13)
     addGripDot(13, 8)
     addGripDot(8, 13)
@@ -1504,10 +1528,6 @@ function AzothUI:CreateWindow(data)
     close.MouseButton1Click:Connect(function()
         window:Close()
     end)
-
-    --==================================================
-    -- CAPABILITY INFORMATION
-    --==================================================
 
     window.Capabilities = {
         PlayerGui = GuiParent == LocalPlayer:FindFirstChildOfClass("PlayerGui"),
