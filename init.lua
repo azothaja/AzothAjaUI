@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.3.1
+-- AZOTHUI v1.3.2
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.3.1"
+AzothUI.Version = "1.3.2"
 
 --==================================================
 -- SERVICES
@@ -82,8 +82,8 @@ local ThemePresets = {
         Surface = Color3.fromRGB(22, 23, 28),
         Surface2 = Color3.fromRGB(31, 33, 40),
         Border = Color3.fromRGB(55, 58, 68),
-        Red = Color3.fromRGB(125, 132, 150),
-        RedHover = Color3.fromRGB(150, 157, 175),
+        Red = Color3.fromRGB(220, 32, 48),
+        RedHover = Color3.fromRGB(238, 45, 61),
         Text = Color3.fromRGB(242, 243, 247),
         SubText = Color3.fromRGB(165, 168, 177),
         Muted = Color3.fromRGB(112, 116, 126),
@@ -229,12 +229,42 @@ local function encodeConfigValue(value, depth)
 
     if type(value) == "table" then
         local result = {}
-        for key, item in pairs(value) do
-            local encoded = encodeConfigValue(item, depth + 1)
-            if encoded ~= nil then
-                result[tostring(key)] = encoded
+
+        -- Preserve arrays as real JSON arrays. Converting numeric indexes
+        -- to strings breaks ipairs() when the config is loaded again.
+        local isArray = true
+        local maxIndex = 0
+        local count = 0
+
+        for key in pairs(value) do
+            if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then
+                isArray = false
+                break
+            end
+            maxIndex = math.max(maxIndex, key)
+            count += 1
+        end
+
+        if isArray and maxIndex ~= count then
+            isArray = false
+        end
+
+        if isArray then
+            for index = 1, maxIndex do
+                local encoded = encodeConfigValue(value[index], depth + 1)
+                if encoded ~= nil then
+                    result[index] = encoded
+                end
+            end
+        else
+            for key, item in pairs(value) do
+                local encoded = encodeConfigValue(item, depth + 1)
+                if encoded ~= nil then
+                    result[tostring(key)] = encoded
+                end
             end
         end
+
         return result
     end
 
@@ -740,6 +770,7 @@ function TabMethods:AddToggle(data)
     }, row)
 
     Corner(switch, 12)
+    registerThemeProperty(switch, "BackgroundColor3", value and Config.Theme.Red or Config.Theme.Muted)
 
     local knob = New("Frame", {
         Size = UDim2.fromOffset(18, 18),
@@ -755,10 +786,15 @@ function TabMethods:AddToggle(data)
     local function setValue(newValue, fire)
         value = newValue == true
 
+        local switchColor = value and Config.Theme.Red or Config.Theme.Muted
+
+        -- The toggle changes semantic color at runtime. Update its theme
+        -- binding too, otherwise a later SetTheme() can force an enabled
+        -- toggle back to the Muted color while GetValue() is still true.
+        registerThemeProperty(switch, "BackgroundColor3", switchColor)
+
         Tween(switch, 0.15, {
-            BackgroundColor3 = value
-                and Config.Theme.Red
-                or Config.Theme.Muted
+            BackgroundColor3 = switchColor
         })
 
         Tween(knob, 0.15, {
@@ -1743,20 +1779,11 @@ function WindowMethods:AddTab(data)
 
     table.insert(self.Tabs, tab)
 
+    -- Route every tab click through the same selector. This is important
+    -- for special tabs such as Theme; otherwise two content frames can
+    -- remain visible at the same time.
     button.MouseButton1Click:Connect(function()
-        for _, other in ipairs(self.Tabs) do
-            other.Content.Visible = false
-            other.Accent.Visible = false
-            other.Button.BackgroundColor3 = Config.Theme.Sidebar
-            other.Label.TextColor3 = Config.Theme.SubText
-        end
-
-        content.Visible = true
-        accent.Visible = true
-        button.BackgroundColor3 = Config.Theme.Surface2
-        nameLabel.TextColor3 = Config.Theme.Text
-
-        self.ActiveTab = tab
+        self:SelectTab(tab)
     end)
 
     if #self.Tabs == 1 then
@@ -1939,29 +1966,13 @@ function WindowMethods:CreateThemeTab()
         IsThemeTab = true,
     }
 
-    local function selectThemeTab()
-        for _, other in ipairs(self.Tabs) do
-            if other.Content then
-                other.Content.Visible = false
-            end
-            if other.Accent then
-                other.Accent.Visible = false
-            end
-            if other.Button then
-                other.Button.BackgroundColor3 = Config.Theme.Sidebar
-            end
-            if other.Label then
-                other.Label.TextColor3 = Config.Theme.SubText
-            end
-        end
+    -- Theme is a normal tab as far as selection is concerned. Keeping it
+    -- inside Window.Tabs prevents its content from remaining visible when
+    -- another tab is selected.
+    table.insert(self.Tabs, tab)
 
-        for _, other in ipairs({tab}) do
-            other.Content.Visible = true
-            other.Accent.Visible = true
-            other.Button.BackgroundColor3 = Config.Theme.Surface2
-            other.Label.TextColor3 = Config.Theme.Text
-        end
-        self.ActiveTab = tab
+    local function selectThemeTab()
+        self:SelectTab(tab)
     end
 
     function tab:Select()
@@ -1983,16 +1994,31 @@ function WindowMethods:CreateThemeTab()
     function tab:Destroy()
         if self.Destroyed then return end
         self.Destroyed = true
-        if self.Window.ActiveTab == self then
-            local first = self.Window.Tabs[1]
-            if first then first:Select() end
+
+        for i, existing in ipairs(self.Window.Tabs) do
+            if existing == self then
+                table.remove(self.Window.Tabs, i)
+                break
+            end
         end
+
+        local wasActive = self.Window.ActiveTab == self
         button:Destroy()
         content:Destroy()
         self.Window.ThemeTab = nil
+
+        if wasActive then
+            self.Window.ActiveTab = nil
+            local first = self.Window.Tabs[1]
+            if first then
+                self.Window:SelectTab(first)
+            end
+        end
     end
 
-    button.MouseButton1Click:Connect(selectThemeTab)
+    button.MouseButton1Click:Connect(function()
+        self:SelectTab(tab)
+    end)
 
     self.ThemeTab = tab
     return tab
@@ -2138,22 +2164,43 @@ function WindowMethods:DeleteConfig(name)
 end
 
 function WindowMethods:SelectTab(tab)
-    if not tab then
-        return
+    if not tab or tab.Destroyed then
+        return false
     end
 
+    -- HARD RESET: hide every tab content directly under ContentArea.
+    -- This also covers ThemeTab even if a caller created it through an
+    -- older/custom path and it was not present in Window.Tabs.
+    if self.ContentArea then
+        for _, child in ipairs(self.ContentArea:GetChildren()) do
+            if child:IsA("ScrollingFrame") then
+                child.Visible = false
+            end
+        end
+    end
+
+    -- Reset registered tab buttons.
     for _, other in ipairs(self.Tabs) do
-        other.Content.Visible = false
-        other.Accent.Visible = false
-        other.Button.BackgroundColor3 = Config.Theme.Sidebar
-        other.Label.TextColor3 = Config.Theme.SubText
+        if other and not other.Destroyed then
+            if other.Content then other.Content.Visible = false end
+            if other.Accent then other.Accent.Visible = false end
+            if other.Button then
+                other.Button.BackgroundColor3 = Config.Theme.Sidebar
+            end
+            if other.Label then
+                other.Label.TextColor3 = Config.Theme.SubText
+            end
+        end
     end
 
-    tab.Content.Visible = true
-    tab.Accent.Visible = true
-    tab.Button.BackgroundColor3 = Config.Theme.Surface2
-    tab.Label.TextColor3 = Config.Theme.Text
+    -- Activate exactly one tab.
+    if tab.Content then tab.Content.Visible = true end
+    if tab.Accent then tab.Accent.Visible = true end
+    if tab.Button then tab.Button.BackgroundColor3 = Config.Theme.Surface2 end
+    if tab.Label then tab.Label.TextColor3 = Config.Theme.Text end
     self.ActiveTab = tab
+
+    return true
 end
 
 function WindowMethods:Toggle()
@@ -2636,12 +2683,6 @@ function AzothUI:CreateWindow(data)
         },
     }, WindowMethods)
 
-    -- Theme tab is optional but enabled by default in v1.3.1.
-    -- It is placed after normal tabs via a high LayoutOrder value.
-    if data.ThemeTab ~= false then
-        window:CreateThemeTab()
-    end
-
     --==================================================
     -- DRAG
     --==================================================
@@ -2838,6 +2879,12 @@ function AzothUI:CreateWindow(data)
             return type(game.HttpGet) == "function"
         end),
     }
+
+    -- Create Theme after the user's normal tabs so it participates in the
+    -- same selection system without changing which tab opens by default.
+    if data.ThemeTab ~= false then
+        window:CreateThemeTab()
+    end
 
     return window
 end
