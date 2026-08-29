@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.0.1
+-- AZOTHUI v1.0.2
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.0.1"
+AzothUI.Version = "1.0.2"
 
 --==================================================
 -- SERVICES
@@ -38,13 +38,13 @@ local Config = {
     },
 
     Window = {
-        Width = 720,
-        Height = 500,
-        MinWidth = 520,
-        MinHeight = 360,
+        Width = 760,
+        Height = 480,
+        MinWidth = 560,
+        MinHeight = 380,
         Radius = 14,
-        HeaderHeight = 64,
-        SidebarWidth = 205,
+        HeaderHeight = 60,
+        SidebarWidth = 180,
     },
 
     Logo = "rbxassetid://111606226814401",
@@ -179,6 +179,7 @@ local function Text(parent, value, size, color, font)
         Font = font or Enum.Font.Gotham,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
+        TextTruncate = Enum.TextTruncate.AtEnd,
     }, parent)
 end
 
@@ -258,7 +259,7 @@ function TabMethods:AddSection(title)
         Enum.Font.GothamBold
     )
 
-    label.Size = UDim2.new(1, 0, 0, 26)
+    label.Size = UDim2.new(1, 0, 0, 24)
     label.LayoutOrder = self.Order
 
     self.Order += 1
@@ -270,7 +271,7 @@ function TabMethods:AddButton(data)
     data = data or {}
 
     local button = New("TextButton", {
-        Size = UDim2.new(1, 0, 0, data.Description and 58 or 46),
+        Size = UDim2.new(1, 0, 0, data.Description and 62 or 48),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -291,8 +292,8 @@ function TabMethods:AddButton(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(15, data.Description and 4 or 0)
-    title.Size = UDim2.new(1, -55, 0, data.Description and 25 or 46)
+    title.Position = UDim2.fromOffset(16, data.Description and 5 or 0)
+    title.Size = UDim2.new(1, -58, 0, data.Description and 25 or 48)
 
     if data.Description then
         local description = Text(
@@ -302,8 +303,8 @@ function TabMethods:AddButton(data)
             Config.Theme.SubText
         )
 
-        description.Position = UDim2.fromOffset(15, 29)
-        description.Size = UDim2.new(1, -55, 0, 18)
+        description.Position = UDim2.fromOffset(16, 31)
+        description.Size = UDim2.new(1, -58, 0, 18)
     end
 
     local arrow = Text(
@@ -314,8 +315,8 @@ function TabMethods:AddButton(data)
         Enum.Font.GothamBold
     )
 
-    arrow.Position = UDim2.new(1, -34, 0, 0)
-    arrow.Size = UDim2.fromOffset(25, button.Size.Y.Offset)
+    arrow.Position = UDim2.new(1, -38, 0, 0)
+    arrow.Size = UDim2.fromOffset(28, button.Size.Y.Offset)
     arrow.TextXAlignment = Enum.TextXAlignment.Center
 
     button.MouseEnter:Connect(function()
@@ -347,7 +348,7 @@ function TabMethods:AddToggle(data)
     local value = data.Default == true
 
     local row = New("Frame", {
-        Size = UDim2.new(1, 0, 0, 52),
+        Size = UDim2.new(1, 0, 0, 54),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         LayoutOrder = self.Order,
@@ -366,12 +367,12 @@ function TabMethods:AddToggle(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(15, 0)
-    title.Size = UDim2.new(1, -85, 1, 0)
+    title.Position = UDim2.fromOffset(16, 0)
+    title.Size = UDim2.new(1, -92, 1, 0)
 
     local switch = New("TextButton", {
-        Size = UDim2.fromOffset(44, 24),
-        Position = UDim2.new(1, -58, 0.5, -12),
+        Size = UDim2.fromOffset(46, 25),
+        Position = UDim2.new(1, -62, 0.5, -12.5),
         BackgroundColor3 = value and Config.Theme.Red or Config.Theme.Muted,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -383,7 +384,7 @@ function TabMethods:AddToggle(data)
     local knob = New("Frame", {
         Size = UDim2.fromOffset(18, 18),
         Position = value
-            and UDim2.new(1, -21, 0.5, -9)
+            and UDim2.new(1, -22, 0.5, -9)
             or UDim2.new(0, 3, 0.5, -9),
         BackgroundColor3 = Config.Theme.White,
         BorderSizePixel = 0,
@@ -402,7 +403,7 @@ function TabMethods:AddToggle(data)
 
         Tween(knob, 0.15, {
             Position = value
-                and UDim2.new(1, -21, 0.5, -9)
+                and UDim2.new(1, -22, 0.5, -9)
                 or UDim2.new(0, 3, 0.5, -9)
         })
 
@@ -438,7 +439,7 @@ function TabMethods:AddSlider(data)
     )
 
     local row = New("Frame", {
-        Size = UDim2.new(1, 0, 0, 72),
+        Size = UDim2.new(1, 0, 0, 74),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         LayoutOrder = self.Order,
@@ -457,7 +458,7 @@ function TabMethods:AddSlider(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(15, 7)
+    title.Position = UDim2.fromOffset(16, 8)
     title.Size = UDim2.new(1, -80, 0, 20)
 
     local valueLabel = Text(
@@ -472,8 +473,8 @@ function TabMethods:AddSlider(data)
     valueLabel.TextXAlignment = Enum.TextXAlignment.Right
 
     local bar = New("Frame", {
-        Size = UDim2.new(1, -30, 0, 5),
-        Position = UDim2.fromOffset(15, 47),
+        Size = UDim2.new(1, -32, 0, 5),
+        Position = UDim2.fromOffset(16, 49),
         BackgroundColor3 = Config.Theme.Muted,
         BorderSizePixel = 0,
         Active = true,
@@ -602,12 +603,12 @@ function TabMethods:AddDropdown(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(15, 0)
-    title.Size = UDim2.new(0.4, 0, 1, 0)
+    title.Position = UDim2.fromOffset(16, 0)
+    title.Size = UDim2.new(0.42, 0, 1, 0)
 
     local selector = New("TextButton", {
-        Size = UDim2.fromOffset(190, 34),
-        Position = UDim2.new(1, -205, 0.5, -17),
+        Size = UDim2.fromOffset(180, 34),
+        Position = UDim2.new(1, -196, 0.5, -17),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -622,8 +623,8 @@ function TabMethods:AddDropdown(data)
     Border(selector)
 
     local menu = New("Frame", {
-        Size = UDim2.fromOffset(190, 0),
-        Position = UDim2.new(1, -205, 1, 4),
+        Size = UDim2.fromOffset(180, 0),
+        Position = UDim2.new(1, -196, 1, 4),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         Visible = false,
@@ -644,7 +645,7 @@ function TabMethods:AddDropdown(data)
         selector.Text = tostring(current) .. "  ▾"
 
         menu.Visible = false
-        menu.Size = UDim2.fromOffset(190, 0)
+        menu.Size = UDim2.fromOffset(180, 0)
 
         if fire and type(data.Callback) == "function" then
             task.spawn(data.Callback, current)
@@ -653,7 +654,7 @@ function TabMethods:AddDropdown(data)
 
     for _, option in ipairs(values) do
         local item = New("TextButton", {
-            Size = UDim2.new(1, -8, 0, 30),
+            Size = UDim2.new(1, -8, 0, 29),
             BackgroundColor3 = Config.Theme.Surface,
             BorderSizePixel = 0,
             AutoButtonColor = false,
@@ -682,11 +683,11 @@ function TabMethods:AddDropdown(data)
 
         if menu.Visible then
             menu.Size = UDim2.fromOffset(
-                190,
+                180,
                 math.min(#values * 32 + 8, 180)
             )
         else
-            menu.Size = UDim2.fromOffset(190, 0)
+            menu.Size = UDim2.fromOffset(180, 0)
         end
     end)
 
@@ -726,12 +727,12 @@ function TabMethods:AddInput(data)
         Enum.Font.GothamMedium
     )
 
-    title.Position = UDim2.fromOffset(15, 0)
-    title.Size = UDim2.fromOffset(115, 58)
+    title.Position = UDim2.fromOffset(16, 0)
+    title.Size = UDim2.fromOffset(105, 58)
 
     local box = New("TextBox", {
-        Size = UDim2.new(1, -145, 0, 34),
-        Position = UDim2.fromOffset(130, 12),
+        Size = UDim2.new(1, -137, 0, 34),
+        Position = UDim2.fromOffset(122, 12),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         Text = value,
@@ -793,7 +794,7 @@ function TabMethods:AddParagraph(data)
         Enum.Font.GothamBold
     )
 
-    title.Position = UDim2.fromOffset(15, 8)
+    title.Position = UDim2.fromOffset(16, 8)
     title.Size = UDim2.new(1, -30, 0, 20)
 
     local content = Text(
@@ -803,7 +804,7 @@ function TabMethods:AddParagraph(data)
         Config.Theme.SubText
     )
 
-    content.Position = UDim2.fromOffset(15, 31)
+    content.Position = UDim2.fromOffset(16, 31)
     content.Size = UDim2.new(1, -30, 0, 34)
     content.TextWrapped = true
 
@@ -832,7 +833,7 @@ function WindowMethods:AddTab(data)
     local icon = data.Icon or ""
 
     local button = New("TextButton", {
-        Size = UDim2.new(1, 0, 0, 44),
+        Size = UDim2.new(1, 0, 0, 42),
         BackgroundColor3 = Config.Theme.Sidebar,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -846,8 +847,8 @@ function WindowMethods:AddTab(data)
     Corner(button, 9)
 
     local accent = New("Frame", {
-        Size = UDim2.new(0, 3, 1, -14),
-        Position = UDim2.fromOffset(0, 7),
+        Size = UDim2.new(0, 3, 1, -12),
+        Position = UDim2.fromOffset(0, 6),
         BackgroundColor3 = Config.Theme.Red,
         BorderSizePixel = 0,
         Visible = false,
@@ -863,8 +864,8 @@ function WindowMethods:AddTab(data)
         Config.Theme.SubText
     )
 
-    iconLabel.Position = UDim2.fromOffset(9, 0)
-    iconLabel.Size = UDim2.fromOffset(28, 44)
+    iconLabel.Position = UDim2.fromOffset(8, 0)
+    iconLabel.Size = UDim2.fromOffset(30, 42)
     iconLabel.TextXAlignment = Enum.TextXAlignment.Center
 
     local nameLabel = Text(
@@ -875,17 +876,17 @@ function WindowMethods:AddTab(data)
         Enum.Font.GothamMedium
     )
 
-    nameLabel.Position = UDim2.fromOffset(48, 0)
-    nameLabel.Size = UDim2.new(1, -55, 1, 0)
+    nameLabel.Position = UDim2.fromOffset(46, 0)
+    nameLabel.Size = UDim2.new(1, -54, 1, 0)
 
     local content = New("ScrollingFrame", {
-        Size = UDim2.new(1, -18, 1, -18),
-        Position = UDim2.fromOffset(9, 9),
+        Size = UDim2.new(1, -28, 1, -24),
+        Position = UDim2.fromOffset(14, 12),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ScrollBarThickness = 3,
         ScrollBarImageColor3 = Config.Theme.Red,
-        ScrollBarImageTransparency = 0.25,
+        ScrollBarImageTransparency = 0.35,
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         CanvasSize = UDim2.new(),
         ScrollingDirection = Enum.ScrollingDirection.Y,
@@ -894,8 +895,13 @@ function WindowMethods:AddTab(data)
         ZIndex = 19,
     }, self.ContentArea)
 
+    New("UIPadding", {
+        PaddingRight = UDim.new(0, 6),
+        PaddingBottom = UDim.new(0, 8),
+    }, content)
+
     New("UIListLayout", {
-        Padding = UDim.new(0, 8),
+        Padding = UDim.new(0, 7),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, content)
 
@@ -936,6 +942,25 @@ end
     return tab
 end
 
+function WindowMethods:SelectTab(tab)
+    if not tab then
+        return
+    end
+
+    for _, other in ipairs(self.Tabs) do
+        other.Content.Visible = false
+        other.Accent.Visible = false
+        other.Button.BackgroundColor3 = Config.Theme.Sidebar
+        other.Label.TextColor3 = Config.Theme.SubText
+    end
+
+    tab.Content.Visible = true
+    tab.Accent.Visible = true
+    tab.Button.BackgroundColor3 = Config.Theme.Surface2
+    tab.Label.TextColor3 = Config.Theme.Text
+    self.ActiveTab = tab
+end
+
 function WindowMethods:SetTitle(value)
     if self.Title then
         self.Title.Text = tostring(value)
@@ -960,6 +985,9 @@ function WindowMethods:SetSize(width, height)
     )
 
     self.Main.Size = UDim2.fromOffset(width, height)
+    if self.Shadow then
+        self.Shadow.Size = UDim2.fromOffset(width + 8, height + 8)
+    end
 end
 
 function WindowMethods:GetSize()
@@ -972,11 +1000,17 @@ end
 
 function WindowMethods:Minimize()
     self.Main.Visible = false
+    if self.Shadow then
+        self.Shadow.Visible = false
+    end
     self.Mini.Visible = true
 end
 
 function WindowMethods:Maximize()
     self.Main.Visible = true
+    if self.Shadow then
+        self.Shadow.Visible = true
+    end
     self.Mini.Visible = false
 end
 
@@ -987,14 +1021,17 @@ function WindowMethods:Close()
 
     self.Destroyed = true
 
-    -- Grip is a descendant of Main now, so it's destroyed
-    -- automatically with it - no separate cleanup needed.
+    -- Resize grip is a child of the window surface and is cleaned up with it.
     if self.Mini then
         self.Mini:Destroy()
     end
 
     if self.Main then
         self.Main:Destroy()
+    end
+
+    if self.Shadow then
+        self.Shadow:Destroy()
     end
 end
 
@@ -1123,6 +1160,18 @@ function AzothUI:CreateWindow(data)
     width = math.max(width, Config.Window.MinWidth)
     height = math.max(height, Config.Window.MinHeight)
 
+    local shadow = New("Frame", {
+        Name = "WindowShadow",
+        Size = UDim2.fromOffset(width + 8, height + 8),
+        Position = UDim2.new(0.5, 0, 0.5, 4),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.62,
+        BorderSizePixel = 0,
+        ZIndex = 8,
+    }, ScreenGui)
+    Corner(shadow, Config.Window.Radius + 2)
+
     local main = New("Frame", {
         Name = "Window",
         Size = UDim2.fromOffset(width, height),
@@ -1162,8 +1211,8 @@ function AzothUI:CreateWindow(data)
         Enum.Font.GothamBold
     )
 
-    title.Position = UDim2.fromOffset(22, 0)
-    title.Size = UDim2.new(1, -180, 1, 0)
+    title.Position = UDim2.fromOffset(20, 0)
+    title.Size = UDim2.new(1, -210, 1, 0)
 
     local version = Text(
         header,
@@ -1172,12 +1221,12 @@ function AzothUI:CreateWindow(data)
         Config.Theme.SubText
     )
 
-    version.Position = UDim2.new(1, -145, 0, 0)
-    version.Size = UDim2.fromOffset(65, Config.Window.HeaderHeight)
+    version.Position = UDim2.new(1, -150, 0, 0)
+    version.Size = UDim2.fromOffset(70, Config.Window.HeaderHeight)
 
     local minimize = New("TextButton", {
         Size = UDim2.fromOffset(38, 38),
-        Position = UDim2.new(1, -92, 0.5, -19),
+        Position = UDim2.new(1, -94, 0.5, -18),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -1192,7 +1241,7 @@ function AzothUI:CreateWindow(data)
 
     local close = New("TextButton", {
         Size = UDim2.fromOffset(38, 38),
-        Position = UDim2.new(1, -48, 0.5, -19),
+        Position = UDim2.new(1, -48, 0.5, -18),
         BackgroundColor3 = Config.Theme.Surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -1214,6 +1263,15 @@ function AzothUI:CreateWindow(data)
         ZIndex = 16,
     }, inside)
 
+    local headerGlow = New("Frame", {
+        Size = UDim2.new(1, -24, 0, 1),
+        Position = UDim2.fromOffset(12, Config.Window.HeaderHeight - 1),
+        BackgroundColor3 = Config.Theme.Red,
+        BackgroundTransparency = 0.78,
+        BorderSizePixel = 0,
+        ZIndex = 17,
+    }, inside)
+
     local sidebar = New("Frame", {
         Size = UDim2.new(
             0,
@@ -1228,16 +1286,32 @@ function AzothUI:CreateWindow(data)
     }, inside)
 
     New("UIPadding", {
-        PaddingLeft = UDim.new(0, 12),
-        PaddingRight = UDim.new(0, 12),
-        PaddingTop = UDim.new(0, 14),
-        PaddingBottom = UDim.new(0, 14),
+        PaddingLeft = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10),
+        PaddingTop = UDim.new(0, 12),
+        PaddingBottom = UDim.new(0, 12),
     }, sidebar)
 
     New("UIListLayout", {
-        Padding = UDim.new(0, 7),
+        Padding = UDim.new(0, 6),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, sidebar)
+
+    local sidebarCaption = Text(
+        sidebar,
+        "MENU",
+        9,
+        Config.Theme.Muted,
+        Enum.Font.GothamBold
+    )
+    sidebarCaption.Size = UDim2.new(1, 0, 0, 18)
+    sidebarCaption.LayoutOrder = 0
+    sidebarCaption.TextXAlignment = Enum.TextXAlignment.Left
+
+    local sidebarLayout = sidebar:FindFirstChildOfClass("UIListLayout")
+    if sidebarLayout then
+        sidebarLayout.Padding = UDim.new(0, 6)
+    end
 
     local contentArea = New("Frame", {
         Size = UDim2.new(
@@ -1279,6 +1353,7 @@ function AzothUI:CreateWindow(data)
 
     local window = setmetatable({
         Main = main,
+        Shadow = shadow,
         Header = header,
         Sidebar = sidebar,
         ContentArea = contentArea,
@@ -1313,13 +1388,13 @@ function AzothUI:CreateWindow(data)
     -- inside the already-rounded corner instead of trying to hug the
     -- curve from outside.
 
-    local gripInset = 8
+    local gripInset = 7
 
     local grip = New("TextButton", {
         Name = "ResizeGrip",
         AnchorPoint = Vector2.new(1, 1),
         Position = UDim2.new(1, -gripInset, 1, -gripInset),
-        Size = UDim2.fromOffset(20, 20),
+        Size = UDim2.fromOffset(18, 18),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -1355,9 +1430,9 @@ function AzothUI:CreateWindow(data)
     addGripDot(4, 4)
     addGripDot(4, 11)
     addGripDot(11, 4)
-    addGripDot(4, 18)
+    addGripDot(4, 16)
     addGripDot(11, 11)
-    addGripDot(18, 4)
+    addGripDot(16, 4)
 
     grip.MouseEnter:Connect(function()
         for _, dot in ipairs(gripDots) do
@@ -1413,16 +1488,20 @@ function AzothUI:CreateWindow(data)
 
         local delta = input.Position - resizeStart
 
-        main.Size = UDim2.fromOffset(
-            math.max(
-                Config.Window.MinWidth,
-                startingSize.X + delta.X
-            ),
-            math.max(
-                Config.Window.MinHeight,
-                startingSize.Y + delta.Y
-            )
+        local newWidth = math.max(
+            Config.Window.MinWidth,
+            startingSize.X + delta.X
         )
+        local newHeight = math.max(
+            Config.Window.MinHeight,
+            startingSize.Y + delta.Y
+        )
+
+        main.Size = UDim2.fromOffset(newWidth, newHeight)
+
+        if shadow then
+            shadow.Size = UDim2.fromOffset(newWidth + 8, newHeight + 8)
+        end
     end)
 
     --==================================================
