@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.5.0
+-- AZOTHUI v1.6.0
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.5.0"
+AzothUI.Version = "1.6.0"
 
 --==================================================
 -- SERVICES
@@ -57,16 +57,16 @@ Config.ThemeName = "Azoth"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
 
--- v1.5.0:
--- * Added a real Section component with automatic vertical layout.
--- * AddSection() accepts both a string and a configuration table.
--- * Added optional Section Description.
--- * Added collapsible sections with SetOpen/Toggle/IsOpen.
--- * Section components reuse the existing component API and Flag system.
--- * Added section-level visibility and destruction helpers.
--- * Added bottom content padding for cleaner scrolling.
--- * Preserved the external Theme.lua architecture from v1.4.6.
--- * Preserved existing components, config, themes, minimize, resize and tab APIs.
+-- v1.6.0:
+-- * Hardened window drag handling and tracked drag connections for cleanup.
+-- * Added viewport-aware window dragging so the window stays reachable on-screen.
+-- * Hardened minimized-logo dragging so release after movement cannot maximize.
+-- * Added responsive resize refresh and window position/center helpers.
+-- * Added SetPosition/GetPosition/Center/SetMinimized helpers.
+-- * Added duplicate Theme-tab protection when callers manually request "Theme".
+-- * Hardened tab switching and popup cleanup behavior.
+-- * Added component cleanup hooks for tabs and windows.
+-- * Preserved v1.5.0 Section/Layout API and external Theme.lua architecture.
 
 -- v1.4.6:
 -- * Moved all theme presets out of init.lua.
@@ -573,17 +573,51 @@ local function Hover(object, normalColor, hoverColor, duration)
     end)
 end
 
-local function MakeDraggable(handle, target)
+local function MakeDraggable(handle, target, connectionBucket, options)
+    options = options or {}
+
     local state = {
         Dragging = false,
         Moved = false,
     }
 
     local dragStart
-    local startPosition
-    local DRAG_THRESHOLD = 5
+    local startAbsolutePosition
+    local DRAG_THRESHOLD = tonumber(options.Threshold) or 5
 
-    handle.InputBegan:Connect(function(input)
+    local function track(connection)
+        if connectionBucket and connection then
+            table.insert(connectionBucket, connection)
+        end
+        return connection
+    end
+
+    local function getViewport()
+        local camera = workspace.CurrentCamera
+        return camera and camera.ViewportSize or Vector2.new(1920, 1080)
+    end
+
+    local function applyPosition(delta)
+        local x = startAbsolutePosition.X + delta.X
+        local y = startAbsolutePosition.Y + delta.Y
+
+        if options.KeepOnScreen ~= false then
+            local viewport = getViewport()
+            local targetSize = target.AbsoluteSize
+
+            local minX = math.min(0, viewport.X - targetSize.X)
+            local maxX = math.max(0, viewport.X - targetSize.X)
+            local minY = math.min(0, viewport.Y - targetSize.Y)
+            local maxY = math.max(0, viewport.Y - targetSize.Y)
+
+            x = math.clamp(x, minX, maxX)
+            y = math.clamp(y, minY, maxY)
+        end
+
+        target.Position = UDim2.fromOffset(x, y)
+    end
+
+    track(handle.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1
         and input.UserInputType ~= Enum.UserInputType.Touch then
             return
@@ -592,17 +626,15 @@ local function MakeDraggable(handle, target)
         state.Dragging = true
         state.Moved = false
         dragStart = input.Position
-        startPosition = target.Position
+        startAbsolutePosition = target.AbsolutePosition
 
         local connection
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 state.Dragging = false
 
-                -- Keep the click suppressed briefly after an actual drag.
-                -- Roblox can fire MouseButton1Click immediately after InputEnded.
                 if state.Moved then
-                    task.delay(0.20, function()
+                    task.delay(0.25, function()
                         state.Moved = false
                     end)
                 end
@@ -612,9 +644,9 @@ local function MakeDraggable(handle, target)
                 end
             end
         end)
-    end)
+    end))
 
-    UserInputService.InputChanged:Connect(function(input)
+    track(UserInputService.InputChanged:Connect(function(input)
         if not state.Dragging then
             return
         end
@@ -631,13 +663,8 @@ local function MakeDraggable(handle, target)
             state.Moved = true
         end
 
-        target.Position = UDim2.new(
-            startPosition.X.Scale,
-            startPosition.X.Offset + delta.X,
-            startPosition.Y.Scale,
-            startPosition.Y.Offset + delta.Y
-        )
-    end)
+        applyPosition(delta)
+    end))
 
     return state
 end
@@ -2049,6 +2076,18 @@ function TabMethods:Destroy()
         end
     end
 
+    if self.Window and self.Window.Controls then
+        for flag, control in pairs(self.Window.Controls) do
+            if control and control.Instance then
+                local instance = control.Instance
+                if instance == self.Content
+                or (typeof(instance) == "Instance" and instance:IsDescendantOf(self.Content)) then
+                    self.Window.Controls[flag] = nil
+                end
+            end
+        end
+    end
+
     if self.Button then self.Button:Destroy() end
     if self.Content then self.Content:Destroy() end
 
@@ -2071,8 +2110,16 @@ WindowMethods.__index = WindowMethods
 function WindowMethods:AddTab(data)
     data = data or {}
 
-    local title = data.Title or data.Name or "Tab"
+    local title = tostring(data.Title or data.Name or "Tab")
     local icon = data.Icon or ""
+
+    -- v1.6.0: Theme is an internal special tab. If it already exists,
+    -- return the existing tab instead of creating a second Theme entry.
+    if string.lower(title) == "theme"
+    and self.ThemeTab
+    and not self.ThemeTab.Destroyed then
+        return self.ThemeTab
+    end
 
     local button = New("TextButton", {
         Size = UDim2.new(1, 0, 0, 44),
@@ -2720,19 +2767,29 @@ function WindowMethods:SetSize(width, height)
     )
 
     self.Main.Size = UDim2.fromOffset(width, height)
+    self.LastSize = self.Main.Size
 
     -- Force a layout refresh for responsive ScrollingFrames after resize.
     task.defer(function()
-        if self.ContentArea then
-            for _, child in ipairs(self.ContentArea:GetChildren()) do
-                if child:IsA("ScrollingFrame") then
-                    child.CanvasPosition = Vector2.new(
-                        child.CanvasPosition.X,
-                        child.CanvasPosition.Y
-                    )
-                end
+        if not self.ContentArea then
+            return
+        end
+
+        for _, child in ipairs(self.ContentArea:GetChildren()) do
+            if child:IsA("ScrollingFrame") then
+                child.CanvasPosition = Vector2.new(
+                    child.CanvasPosition.X,
+                    child.CanvasPosition.Y
+                )
             end
         end
+
+        task.defer(function()
+            if self.ActiveTab and self.ActiveTab.Content then
+                self.ActiveTab.Content.CanvasPosition =
+                    self.ActiveTab.Content.CanvasPosition
+            end
+        end)
     end)
 end
 
@@ -2740,26 +2797,105 @@ function WindowMethods:GetSize()
     return self.Main.AbsoluteSize
 end
 
+function WindowMethods:SetPosition(x, y)
+    x = tonumber(x)
+    y = tonumber(y)
+
+    if not x or not y then
+        return false
+    end
+
+    local camera = workspace.CurrentCamera
+    local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+    local size = self.Main.AbsoluteSize
+
+    x = math.clamp(
+        x,
+        math.min(0, viewport.X - size.X),
+        math.max(0, viewport.X - size.X)
+    )
+
+    y = math.clamp(
+        y,
+        math.min(0, viewport.Y - size.Y),
+        math.max(0, viewport.Y - size.Y)
+    )
+
+    self.Main.Position = UDim2.fromOffset(x, y)
+    self.LastPosition = self.Main.Position
+    return true
+end
+
+function WindowMethods:GetPosition()
+    return self.Main.AbsolutePosition
+end
+
+function WindowMethods:Center()
+    local camera = workspace.CurrentCamera
+    local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+    local size = self.Main.AbsoluteSize
+
+    local x = math.max(0, (viewport.X - size.X) / 2)
+    local y = math.max(0, (viewport.Y - size.Y) / 2)
+
+    self.Main.Position = UDim2.fromOffset(x, y)
+    self.LastPosition = self.Main.Position
+    return true
+end
+
+function WindowMethods:SetMinimized(value)
+    if value == true then
+        self:Minimize()
+    else
+        self:Maximize()
+    end
+    return true
+end
+
 function WindowMethods:SetLogo(asset)
     self.Mini.Image = tostring(asset)
 end
 
 function WindowMethods:Minimize()
+    if self.Destroyed then
+        return false
+    end
+
+    self.PreviousVisibleState = self.Main.Visible
+    self.LastPosition = self.Main.Position
+    self.LastSize = self.Main.Size
+
     self.Main.Visible = false
     self.Mini.Visible = true
 
     if self.Callbacks and type(self.Callbacks.OnMinimize) == "function" then
         task.spawn(self.Callbacks.OnMinimize, self)
     end
+
+    return true
 end
 
 function WindowMethods:Maximize()
+    if self.Destroyed then
+        return false
+    end
+
     self.Main.Visible = true
     self.Mini.Visible = false
+
+    if self.LastPosition then
+        self.Main.Position = self.LastPosition
+    end
+
+    if self.LastSize then
+        self.Main.Size = self.LastSize
+    end
 
     if self.Callbacks and type(self.Callbacks.OnMaximize) == "function" then
         task.spawn(self.Callbacks.OnMaximize, self)
     end
+
+    return true
 end
 
 function WindowMethods:Close()
@@ -2774,6 +2910,16 @@ function WindowMethods:Close()
     end
 
     self.Destroyed = true
+
+    for _, connection in ipairs(self.Connections or {}) do
+        pcall(function()
+            connection:Disconnect()
+        end)
+    end
+    self.Connections = {}
+
+    self.Controls = {}
+    self.PendingConfig = nil
 
     if self.Callbacks and type(self.Callbacks.OnClose) == "function" then
         task.spawn(self.Callbacks.OnClose, self)
@@ -3340,6 +3486,9 @@ function AzothUI:CreateWindow(data)
         Destroyed = false,
         Connections = {},
         Controls = {},
+        LastPosition = main.Position,
+        LastSize = main.Size,
+        PreviousVisibleState = true,
         ConfigName = data.ConfigName or (type(data.Config) == "table" and data.Config.Name) or "Default",
         AutoSaveConfig = type(data.Config) == "table" and data.Config.AutoSave == true,
         ConfigFireCallbacks = type(data.Config) == "table" and data.Config.FireCallbacks == true,
@@ -3354,8 +3503,18 @@ function AzothUI:CreateWindow(data)
     -- DRAG
     --==================================================
 
-    MakeDraggable(header, main)
-    local miniDragState = MakeDraggable(mini, mini)
+    window.LastPosition = main.Position
+    window.LastSize = main.Size
+
+    MakeDraggable(header, main, window.Connections, {
+        KeepOnScreen = true,
+        Threshold = 5,
+    })
+
+    local miniDragState = MakeDraggable(mini, mini, window.Connections, {
+        KeepOnScreen = true,
+        Threshold = 5,
+    })
 
     --==================================================
     -- RESIZE GRIP
@@ -3423,7 +3582,7 @@ function AzothUI:CreateWindow(data)
     local resizeStart
     local startingSize
 
-    grip.InputBegan:Connect(function(input)
+    table.insert(window.Connections, grip.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1
         and input.UserInputType ~= Enum.UserInputType.Touch then
             return
@@ -3432,20 +3591,9 @@ function AzothUI:CreateWindow(data)
         resizing = true
         resizeStart = input.Position
         startingSize = main.AbsoluteSize
+    end))
 
-        local connection
-        connection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                resizing = false
-
-                if connection then
-                    connection:Disconnect()
-                end
-            end
-        end)
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
+    table.insert(window.Connections, UserInputService.InputChanged:Connect(function(input)
         if not resizing then
             return
         end
@@ -3470,7 +3618,15 @@ function AzothUI:CreateWindow(data)
         )
 
         main.Size = UDim2.fromOffset(newWidth, newHeight)
-    end)
+        window.LastSize = main.Size
+    end))
+
+    table.insert(window.Connections, UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            resizing = false
+        end
+    end))
 
     --==================================================
     -- BUTTONS
@@ -3505,10 +3661,9 @@ function AzothUI:CreateWindow(data)
     end)
 
     mini.MouseButton1Click:Connect(function()
-        -- A drag should move the mini logo only; releasing the mouse
-        -- must NOT immediately maximize the window.
+        -- A drag should move the mini logo only. Never maximize from
+        -- the click event generated by the same drag release.
         if miniDragState.Moved then
-            miniDragState.Moved = false
             return
         end
 
@@ -3562,6 +3717,18 @@ function AzothUI:CreateWindow(data)
     return window
 end
 
+--==================================================
+-- v1.6.0 WINDOW / LAYOUT HELPERS
+--==================================================
+-- Public helpers:
+--   Window:SetPosition(x, y)
+--   Window:GetPosition()
+--   Window:Center()
+--   Window:SetMinimized(true/false)
+--
+-- AddTab("Theme") is also protected from creating a duplicate
+-- when the internal Theme tab already exists.
+--
 --==================================================
 -- FRAMEWORK HELPERS
 --==================================================
