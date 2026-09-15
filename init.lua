@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.6.0
+-- AZOTHUI v1.6.2
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.6.1"
+AzothUI.Version = "1.6.2"
 
 --==================================================
 -- SERVICES
@@ -56,6 +56,12 @@ local Config = {
 Config.ThemeName = "Azoth"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
+
+-- v1.6.2:
+-- * Fixed main-window drag jump by preserving UDim2 scale/offset during drag.
+-- * Kept viewport clamping without converting AbsolutePosition into raw offsets.
+-- * Preserved the stable v1.6.1 mini-logo drag model.
+-- * Restored mini-logo transparency/white image rendering so the asset is not visually tinted.
 
 -- v1.6.0:
 -- * Hardened window drag handling and tracked drag connections for cleanup.
@@ -582,7 +588,7 @@ local function MakeDraggable(handle, target, connectionBucket, options)
     }
 
     local dragStart
-    local startAbsolutePosition
+    local startPosition
     local DRAG_THRESHOLD = tonumber(options.Threshold) or 5
 
     local function track(connection)
@@ -598,23 +604,33 @@ local function MakeDraggable(handle, target, connectionBucket, options)
     end
 
     local function applyPosition(delta)
-        local x = startAbsolutePosition.X + delta.X
-        local y = startAbsolutePosition.Y + delta.Y
+        -- Preserve the original UDim2 scale/offset relationship.
+        -- Using AbsolutePosition as the new UDim2 offset causes a jump when
+        -- the window is initially centered with AnchorPoint 0.5.
+        local scaleX = startPosition.X.Scale
+        local scaleY = startPosition.Y.Scale
+        local offsetX = startPosition.X.Offset + delta.X
+        local offsetY = startPosition.Y.Offset + delta.Y
 
         if options.KeepOnScreen ~= false then
             local viewport = getViewport()
             local targetSize = target.AbsoluteSize
+            local anchor = target.AnchorPoint
 
-            local minX = math.min(0, viewport.X - targetSize.X)
+            local absoluteX = viewport.X * scaleX + offsetX - targetSize.X * anchor.X
+            local absoluteY = viewport.Y * scaleY + offsetY - targetSize.Y * anchor.Y
+
             local maxX = math.max(0, viewport.X - targetSize.X)
-            local minY = math.min(0, viewport.Y - targetSize.Y)
             local maxY = math.max(0, viewport.Y - targetSize.Y)
 
-            x = math.clamp(x, minX, maxX)
-            y = math.clamp(y, minY, maxY)
+            absoluteX = math.clamp(absoluteX, math.min(0, maxX), maxX)
+            absoluteY = math.clamp(absoluteY, math.min(0, maxY), maxY)
+
+            offsetX = absoluteX - viewport.X * scaleX + targetSize.X * anchor.X
+            offsetY = absoluteY - viewport.Y * scaleY + targetSize.Y * anchor.Y
         end
 
-        target.Position = UDim2.fromOffset(x, y)
+        target.Position = UDim2.new(scaleX, offsetX, scaleY, offsetY)
     end
 
     track(handle.InputBegan:Connect(function(input)
@@ -626,7 +642,7 @@ local function MakeDraggable(handle, target, connectionBucket, options)
         state.Dragging = true
         state.Moved = false
         dragStart = input.Position
-        startAbsolutePosition = target.AbsolutePosition
+        startPosition = target.Position
 
         local connection
         connection = input.Changed:Connect(function()
@@ -634,7 +650,7 @@ local function MakeDraggable(handle, target, connectionBucket, options)
                 state.Dragging = false
 
                 if state.Moved then
-                    task.delay(0.25, function()
+                    task.delay(0.20, function()
                         state.Moved = false
                     end)
                 end
@@ -3537,8 +3553,11 @@ function AzothUI:CreateWindow(data)
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Config.Theme.Background,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Image = data.Logo or Config.Logo,
+        ImageColor3 = Color3.fromRGB(255, 255, 255),
+        ImageTransparency = 0,
         ScaleType = Enum.ScaleType.Fit,
         Visible = false,
         Active = true,
