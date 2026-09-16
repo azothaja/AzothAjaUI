@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.6.2
+-- AZOTHUI v1.7.0
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.6.2"
+AzothUI.Version = "1.7.0"
 
 --==================================================
 -- SERVICES
@@ -15,7 +15,7 @@ AzothUI.Version = "1.6.2"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
+local HttpService = game:GetService("HttpService")  
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -48,6 +48,10 @@ local Config = {
         Radius = 14,
         HeaderHeight = 54,
         SidebarWidth = 205,
+        ResponsiveBreakpoint = 720,
+        ResponsiveMargin = 12,
+        MobileMinWidth = 320,
+        MobileMinHeight = 300,
     },
 
     Logo = "rbxassetid://111606226814401",
@@ -56,6 +60,11 @@ local Config = {
 Config.ThemeName = "Azoth"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
+
+-- v1.7.0:
+-- * Added opt-in responsive window sizing and a mobile sidebar drawer.
+-- * Added shared popup layering, mouse-only tooltips, and notification queuing.
+-- * Preserved the v1.6.2 window and configuration APIs.
 
 -- v1.6.2:
 -- * Fixed main-window drag jump by preserving UDim2 scale/offset during drag.
@@ -779,6 +788,86 @@ ScreenGui = New("ScreenGui", {
 }, GuiParent)
 
 --==================================================
+-- V1.7.0 POPUP / TOOLTIP HELPERS
+--==================================================
+
+local function getViewportSize()
+    local camera = workspace.CurrentCamera
+    return camera and camera.ViewportSize or Vector2.new(1920, 1080)
+end
+
+local function closeWindowPopups(window, except)
+    if not window or not window.PopupLayer then
+        return
+    end
+
+    for _, child in ipairs(window.PopupLayer:GetChildren()) do
+        if child:IsA("GuiObject") and child ~= except and child:GetAttribute("AzothPopup") then
+            child.Visible = false
+        end
+    end
+end
+
+local function positionPopup(popup, anchor, height)
+    local viewport = getViewportSize()
+    local anchorPosition = anchor.AbsolutePosition
+    local anchorSize = anchor.AbsoluteSize
+    local width = popup.AbsoluteSize.X > 0 and popup.AbsoluteSize.X or popup.Size.X.Offset
+    local x = math.clamp(anchorPosition.X, 4, math.max(4, viewport.X - width - 4))
+    local y = anchorPosition.Y + anchorSize.Y + 4
+
+    if y + height > viewport.Y - 4 then
+        y = anchorPosition.Y - height - 4
+    end
+
+    popup.Position = UDim2.fromOffset(x, math.clamp(y, 4, math.max(4, viewport.Y - height - 4)))
+end
+
+local function addTooltip(window, target, value)
+    if type(value) ~= "string" or value == "" or not window or not window.PopupLayer then
+        return
+    end
+
+    local tooltip = New("TextLabel", {
+        Name = "Tooltip",
+        Size = UDim2.fromOffset(220, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Config.Theme.Surface2,
+        BorderSizePixel = 0,
+        Text = value,
+        TextColor3 = Config.Theme.Text,
+        TextSize = 11,
+        Font = Enum.Font.Gotham,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        Visible = false,
+        ZIndex = 910,
+    }, window.PopupLayer)
+    tooltip:SetAttribute("AzothPopup", true)
+    Corner(tooltip, 7)
+    Border(tooltip)
+    New("UIPadding", {
+        PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10),
+        PaddingTop = UDim.new(0, 7), PaddingBottom = UDim.new(0, 7),
+    }, tooltip)
+
+    table.insert(window.Connections, target.MouseEnter:Connect(function()
+        if UserInputService.TouchEnabled then return end
+        closeWindowPopups(window, tooltip)
+        tooltip.Visible = true
+        task.defer(function()
+            if tooltip.Visible and target.Parent then
+                positionPopup(tooltip, target, tooltip.AbsoluteSize.Y)
+            end
+        end)
+    end))
+    table.insert(window.Connections, target.MouseLeave:Connect(function()
+        tooltip.Visible = false
+    end))
+end
+
+--==================================================
 -- TAB METHODS
 --==================================================
 
@@ -1080,6 +1169,8 @@ function TabMethods:AddLink(data)
         end
     end)
 
+    addTooltip(self.Window, item, data.Tooltip)
+
     return item
 end
 
@@ -1158,6 +1249,8 @@ function TabMethods:AddButton(data)
             task.spawn(data.Callback)
         end
     end)
+
+    addTooltip(self.Window, button, data.Tooltip)
 
     return {
         Instance = button,
@@ -1268,6 +1361,8 @@ function TabMethods:AddToggle(data)
     if data.Flag then
         self.Window:RegisterControl(data.Flag, control)
     end
+
+    addTooltip(self.Window, row, data.Tooltip)
 
     return control
 end
@@ -1424,6 +1519,8 @@ function TabMethods:AddSlider(data)
         self.Window:RegisterControl(data.Flag, control)
     end
 
+    addTooltip(self.Window, row, data.Tooltip)
+
     return control
 end
 
@@ -1486,7 +1583,8 @@ function TabMethods:AddDropdown(data)
         ClipsDescendants = true,
         ZIndex = 600,
         Active = true,
-    }, ScreenGui)
+    }, self.Window.PopupLayer or ScreenGui)
+    menu:SetAttribute("AzothPopup", true)
 
     Corner(menu, 7)
     Border(menu)
@@ -1497,27 +1595,8 @@ function TabMethods:AddDropdown(data)
     }, menu)
 
     local function positionMenu()
-        local selectorPosition = selector.AbsolutePosition
-        local selectorSize = selector.AbsoluteSize
         local menuHeight = math.min(#values * 32 + 8, 180)
-
-        local x = selectorPosition.X
-        local y = selectorPosition.Y + selectorSize.Y + 4
-
-        -- Keep the popup inside the visible viewport when possible.
-        local camera = workspace.CurrentCamera
-        local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
-        local maxX = math.max(4, viewport.X - 194)
-        local maxY = math.max(4, viewport.Y - menuHeight - 4)
-
-        x = math.clamp(x, 4, maxX)
-
-        if y + menuHeight > viewport.Y - 4 then
-            y = selectorPosition.Y - menuHeight - 4
-        end
-
-        y = math.clamp(y, 4, maxY)
-        menu.Position = UDim2.fromOffset(x, y)
+        positionPopup(menu, selector, menuHeight)
     end
 
     local function setValue(newValue, fire)
@@ -1562,6 +1641,7 @@ function TabMethods:AddDropdown(data)
         menu.Visible = not menu.Visible
 
         if menu.Visible then
+            closeWindowPopups(self.Window, menu)
             menu.Size = UDim2.fromOffset(
                 190,
                 math.min(#values * 32 + 8, 180)
@@ -1573,7 +1653,7 @@ function TabMethods:AddDropdown(data)
     end)
 
     -- Close the popup when clicking anywhere outside the selector/menu.
-    UserInputService.InputBegan:Connect(function(input)
+    table.insert(self.Window.Connections, UserInputService.InputBegan:Connect(function(input)
         if not menu.Visible then
             return
         end
@@ -1597,7 +1677,7 @@ function TabMethods:AddDropdown(data)
             menu.Visible = false
             menu.Size = UDim2.fromOffset(190, 0)
         end
-    end)
+    end))
 
     local control = {
         Instance = row,
@@ -1645,6 +1725,9 @@ function TabMethods:AddDropdown(data)
     if data.Flag then
         self.Window:RegisterControl(data.Flag, control)
     end
+
+    self.Window:RegisterResponsiveRow(row, title, selector, 52, 86)
+    addTooltip(self.Window, row, data.Tooltip)
 
     return control
 end
@@ -1721,6 +1804,9 @@ function TabMethods:AddInput(data)
         self.Window:RegisterControl(data.Flag, control)
     end
 
+    self.Window:RegisterResponsiveRow(row, title, box, 58, 88)
+    addTooltip(self.Window, row, data.Tooltip)
+
     return control
 end
 
@@ -1761,6 +1847,8 @@ function TabMethods:AddParagraph(data)
     content.Size = UDim2.new(1, -30, 0, 34)
     content.TextWrapped = true
 
+    addTooltip(self.Window, row, data.Tooltip)
+
     return {
         Instance = row,
         SetTitle = function(_, value)
@@ -1792,6 +1880,8 @@ function TabMethods:AddLabel(data)
     label.TextWrapped = data.Wrapped == true
 
     self.Order += 1
+
+    addTooltip(self.Window, label, data.Tooltip)
 
     return {
         Instance = label,
@@ -1917,6 +2007,9 @@ function TabMethods:AddKeybind(data)
         self.Window:RegisterControl(data.Flag, control)
     end
 
+    self.Window:RegisterResponsiveRow(row, title, keyButton, 52, 86)
+    addTooltip(self.Window, row, data.Tooltip)
+
     return control
 end
 
@@ -1978,7 +2071,8 @@ function TabMethods:AddMultiDropdown(data)
         Visible = false,
         ClipsDescendants = true,
         ZIndex = 200,
-    }, ScreenGui)
+    }, self.Window.PopupLayer or ScreenGui)
+    menu:SetAttribute("AzothPopup", true)
 
     Corner(menu, 7)
     Border(menu)
@@ -2001,9 +2095,7 @@ function TabMethods:AddMultiDropdown(data)
     end
 
     local function positionMenu()
-        local pos = selector.AbsolutePosition
-        local size = selector.AbsoluteSize
-        menu.Position = UDim2.fromOffset(pos.X, pos.Y + size.Y + 4)
+        positionPopup(menu, selector, math.min(#values * 32 + 8, 180))
     end
 
     local function rebuild()
@@ -2056,6 +2148,7 @@ function TabMethods:AddMultiDropdown(data)
     selector.MouseButton1Click:Connect(function()
         menu.Visible = not menu.Visible
         if menu.Visible then
+            closeWindowPopups(self.Window, menu)
             rebuild()
             menu.Size = UDim2.fromOffset(190, math.min(#values * 32 + 8, 180))
             positionMenu()
@@ -2064,7 +2157,7 @@ function TabMethods:AddMultiDropdown(data)
         end
     end)
 
-    UserInputService.InputBegan:Connect(function(input)
+    table.insert(self.Window.Connections, UserInputService.InputBegan:Connect(function(input)
         if not menu.Visible then
             return
         end
@@ -2082,7 +2175,7 @@ function TabMethods:AddMultiDropdown(data)
                 menu.Size = UDim2.fromOffset(190, 0)
             end
         end
-    end)
+    end))
 
     updateText()
 
@@ -2131,6 +2224,9 @@ function TabMethods:AddMultiDropdown(data)
     if data.Flag then
         self.Window:RegisterControl(data.Flag, control)
     end
+
+    self.Window:RegisterResponsiveRow(row, title, selector, 52, 86)
+    addTooltip(self.Window, row, data.Tooltip)
 
     return control
 end
@@ -2203,6 +2299,131 @@ end
 
 local WindowMethods = {}
 WindowMethods.__index = WindowMethods
+
+function WindowMethods:RegisterResponsiveRow(row, label, control, desktopHeight, mobileHeight)
+    if not row or not label or not control then return end
+    table.insert(self.ResponsiveRows, {
+        Row = row, Label = label, Control = control,
+        DesktopHeight = desktopHeight, MobileHeight = mobileHeight,
+        LabelPosition = label.Position, LabelSize = label.Size,
+        ControlPosition = control.Position, ControlSize = control.Size,
+    })
+    self:RefreshResponsiveLayout()
+end
+
+function WindowMethods:RefreshResponsiveLayout()
+    if self.Destroyed then return end
+    local narrow = self.Responsive == true and self.ContentArea.AbsoluteSize.X < 430
+    for _, item in ipairs(self.ResponsiveRows or {}) do
+        if item.Row and item.Row.Parent then
+            if narrow then
+                item.Row.Size = UDim2.new(1, 0, 0, item.MobileHeight)
+                item.Label.Position = UDim2.fromOffset(15, 6)
+                item.Label.Size = UDim2.new(1, -30, 0, 22)
+                item.Control.Position = UDim2.fromOffset(15, 35)
+                item.Control.Size = UDim2.new(1, -30, 0, 34)
+            else
+                item.Row.Size = UDim2.new(1, 0, 0, item.DesktopHeight)
+                item.Label.Position = item.LabelPosition
+                item.Label.Size = item.LabelSize
+                item.Control.Position = item.ControlPosition
+                item.Control.Size = item.ControlSize
+            end
+        end
+    end
+end
+
+function WindowMethods:SetSidebarCollapsed(value)
+    value = value == true
+    if self.SidebarCollapsed == value then return true end
+    self.SidebarCollapsed = value
+    self.MenuButton.Visible = value
+
+    if value then
+        self.SidebarBackground.Visible = false
+        self.ContentArea.Position = UDim2.fromOffset(0, Config.Window.HeaderHeight)
+        self.ContentArea.Size = UDim2.new(1, 0, 1, -Config.Window.HeaderHeight)
+        self.Title.Position = UDim2.fromOffset(54, 0)
+        self.Title.Size = UDim2.new(1, -230, 1, 0)
+    else
+        self.DrawerScrim.Visible = false
+        self.SidebarBackground.Parent = self.Main
+        self.SidebarBackground.Position = UDim2.fromOffset(0, Config.Window.HeaderHeight)
+        self.SidebarBackground.Size = UDim2.new(0, Config.Window.SidebarWidth, 1, -Config.Window.HeaderHeight)
+        self.SidebarBackground.ZIndex = 14
+        self.SidebarBackground.Visible = true
+        self.ContentArea.Position = UDim2.fromOffset(Config.Window.SidebarWidth, Config.Window.HeaderHeight)
+        self.ContentArea.Size = UDim2.new(1, -Config.Window.SidebarWidth, 1, -Config.Window.HeaderHeight)
+        self.Title.Position = UDim2.fromOffset(22, 0)
+        self.Title.Size = UDim2.new(1, -180, 1, 0)
+    end
+    self:RefreshResponsiveLayout()
+    return true
+end
+
+function WindowMethods:ToggleSidebarDrawer(open)
+    if not self.SidebarCollapsed then return false end
+    open = open == true
+    if open then
+        self.SidebarBackground.Parent = self.PopupLayer
+        self.SidebarBackground.Position = UDim2.fromOffset(0, Config.Window.HeaderHeight)
+        self.SidebarBackground.Size = UDim2.fromOffset(math.min(Config.Window.SidebarWidth, getViewportSize().X - 24), math.max(80, getViewportSize().Y - Config.Window.HeaderHeight))
+        self.SidebarBackground.ZIndex = 852
+        self.Sidebar.Visible = true
+        self.SidebarBackground.Visible = true
+        self.DrawerScrim.Visible = true
+        Tween(self.SidebarBackground, 0.16, {Position = UDim2.fromOffset(0, Config.Window.HeaderHeight)})
+    else
+        self.DrawerScrim.Visible = false
+        self.SidebarBackground.Visible = false
+    end
+    return true
+end
+
+function WindowMethods:SetResponsive(enabled)
+    enabled = enabled == true
+    self.Responsive = enabled
+    if enabled then
+        self.ResponsiveBaseSize = Vector2.new(
+            self.Main.Size.X.Offset > 0 and self.Main.Size.X.Offset or self.Main.AbsoluteSize.X,
+            self.Main.Size.Y.Offset > 0 and self.Main.Size.Y.Offset or self.Main.AbsoluteSize.Y
+        )
+    else
+        self:SetSidebarCollapsed(false)
+    end
+    self:RefreshResponsive()
+    return true
+end
+
+function WindowMethods:GetResponsive()
+    return self.Responsive == true
+end
+
+function WindowMethods:IsSidebarCollapsed()
+    return self.SidebarCollapsed == true
+end
+
+function WindowMethods:RefreshResponsive()
+    if not self.Responsive or self.Destroyed then
+        self:RefreshResponsiveLayout()
+        return
+    end
+    local viewport = getViewportSize()
+    local margin = Config.Window.ResponsiveMargin
+    local base = self.ResponsiveBaseSize or self.LastSize or self.Main.AbsoluteSize
+    local desiredW, desiredH = base.X, base.Y
+    local mobile = viewport.X <= Config.Window.ResponsiveBreakpoint
+    local minW = mobile and Config.Window.MobileMinWidth or Config.Window.MinWidth
+    local minH = mobile and Config.Window.MobileMinHeight or Config.Window.MinHeight
+    local width = math.min(math.clamp(desiredW, minW, Config.Window.MaxWidth), math.max(1, viewport.X - margin * 2))
+    local height = math.min(math.clamp(desiredH, minH, Config.Window.MaxHeight), math.max(1, viewport.Y - margin * 2))
+    self.Main.Size = UDim2.fromOffset(width, height)
+    self.LastSize = self.Main.Size
+    self.Main.Position = UDim2.fromOffset(math.max(margin, (viewport.X - width) / 2), math.max(margin, (viewport.Y - height) / 2))
+    self.LastPosition = self.Main.Position
+    self:SetSidebarCollapsed(mobile)
+    self:RefreshResponsiveLayout()
+end
 
 function WindowMethods:AddTab(data)
     data = data or {}
@@ -2779,9 +3000,13 @@ function WindowMethods:SelectTab(tab)
     -- Activate exactly one tab.
     if tab.Content then tab.Content.Visible = true end
     if tab.Accent then tab.Accent.Visible = true end
-    if tab.Button then tab.Button.BackgroundColor3 = Config.Theme.Surface2 end
+    if tab.Button then Tween(tab.Button, 0.14, {BackgroundColor3 = Config.Theme.Surface2}) end
     if tab.Label then tab.Label.TextColor3 = Config.Theme.Text end
     self.ActiveTab = tab
+    closeWindowPopups(self)
+    if self.SidebarCollapsed then
+        self:ToggleSidebarDrawer(false)
+    end
 
     return true
 end
@@ -2824,6 +3049,10 @@ function WindowMethods:SetSidebarVisible(value)
     if self.SidebarBackground then
         self.SidebarBackground.Visible = value
     end
+
+    if self.MenuButton and self.SidebarCollapsed then
+        self.MenuButton.Visible = value
+    end
 end
 
 function WindowMethods:SetTheme(theme)
@@ -2865,6 +3094,7 @@ function WindowMethods:SetSize(width, height)
 
     self.Main.Size = UDim2.fromOffset(width, height)
     self.LastSize = self.Main.Size
+    self.ResponsiveBaseSize = Vector2.new(width, height)
 
     -- Force a layout refresh for responsive ScrollingFrames after resize.
     task.defer(function()
@@ -2888,6 +3118,12 @@ function WindowMethods:SetSize(width, height)
             end
         end)
     end)
+
+    if self.Responsive then
+        self:RefreshResponsive()
+    else
+        self:RefreshResponsiveLayout()
+    end
 end
 
 function WindowMethods:GetSize()
@@ -3030,6 +3266,10 @@ function WindowMethods:Close()
         self.Mini:Destroy()
     end
 
+    if self.PopupLayer then
+        self.PopupLayer:Destroy()
+    end
+
     if self.Main then
         self.Main:Destroy()
     end
@@ -3069,6 +3309,10 @@ local NotificationTypes = {
     },
 }
 
+local NotificationQueue = {}
+local ActiveNotificationCount = 0
+local NotificationLimit = 3
+
 local function normalizeNotificationType(value)
     value = tostring(value or "Info")
 
@@ -3095,7 +3339,7 @@ local function getNotificationContainer()
     container = New("Frame", {
         Name = "Notifications",
         AnchorPoint = Vector2.new(1, 0),
-        Size = UDim2.fromOffset(330, 1),
+        Size = UDim2.fromOffset(math.min(330, getViewportSize().X - 28), 1),
         Position = UDim2.new(1, -14, 0, 14),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
@@ -3127,8 +3371,9 @@ local function CreateNotification(data)
     local typeName = normalizeNotificationType(data.Type)
     local typeInfo = NotificationTypes[typeName]
 
+    local notificationWidth = math.min(315, math.max(220, getViewportSize().X - 28))
     local notification = New("Frame", {
-        Size = UDim2.fromOffset(315, 78),
+        Size = UDim2.fromOffset(notificationWidth, 78),
         BackgroundColor3 = Config.Theme.Surface,
         BorderSizePixel = 0,
         BackgroundTransparency = 0,
@@ -3263,6 +3508,9 @@ local function CreateNotification(data)
             if notification then
                 notification:Destroy()
             end
+            if type(data._OnClosed) == "function" then
+                data._OnClosed()
+            end
         end)
     end
 
@@ -3321,8 +3569,48 @@ local function CreateNotification(data)
     return result
 end
 
+local function processNotificationQueue()
+    while ActiveNotificationCount < NotificationLimit and #NotificationQueue > 0 do
+        local entry = table.remove(NotificationQueue, 1)
+        if not entry.Cancelled then
+            ActiveNotificationCount += 1
+            entry.Data._OnClosed = function()
+                ActiveNotificationCount = math.max(0, ActiveNotificationCount - 1)
+                processNotificationQueue()
+            end
+            local result = CreateNotification(entry.Data)
+            entry.Result = result
+            if not result then
+                ActiveNotificationCount = math.max(0, ActiveNotificationCount - 1)
+            elseif entry.Cancelled then
+                result:Close()
+            end
+        end
+    end
+end
+
 function AzothUI:Notify(data)
-    return CreateNotification(data or {})
+    local entry = {Data = data or {}, Cancelled = false}
+    local proxy = {}
+    function proxy:Close()
+        entry.Cancelled = true
+        if entry.Result then entry.Result:Close() end
+    end
+    function proxy:SetTitle(value)
+        entry.Data.Title = value
+        if entry.Result then entry.Result:SetTitle(value) end
+    end
+    function proxy:SetContent(value)
+        entry.Data.Content = value
+        if entry.Result then entry.Result:SetContent(value) end
+    end
+    function proxy:SetType(value)
+        entry.Data.Type = value
+        if entry.Result then entry.Result:SetType(value) end
+    end
+    table.insert(NotificationQueue, entry)
+    processNotificationQueue()
+    return proxy
 end
 
 --==================================================
@@ -3543,6 +3831,45 @@ function AzothUI:CreateWindow(data)
         ZIndex = 13,
     }, main)
 
+    -- PopupLayer deliberately lives beside the clipped window. Dropdowns,
+    -- tooltips, and the mobile drawer can therefore overlap scrolling content.
+    local popupLayer = New("Frame", {
+        Name = "PopupLayer",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Active = false,
+        ZIndex = 850,
+    }, ScreenGui)
+
+    local drawerScrim = New("TextButton", {
+        Name = "SidebarScrim",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Color3.new(0, 0, 0),
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "",
+        Visible = false,
+        ZIndex = 851,
+    }, popupLayer)
+
+    local menuButton = New("TextButton", {
+        Name = "MenuButton",
+        Size = UDim2.fromOffset(32, 32),
+        Position = UDim2.fromOffset(12, 11),
+        BackgroundColor3 = Config.Theme.Surface2,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "☰",
+        TextColor3 = Config.Theme.Text,
+        TextSize = 17,
+        Font = Enum.Font.GothamMedium,
+        Visible = false,
+        ZIndex = 20,
+    }, header)
+    Corner(menuButton, 8)
+
     --==================================================
     -- MINI LOGO
     --==================================================
@@ -3577,6 +3904,9 @@ function AzothUI:CreateWindow(data)
         Sidebar = sidebar,
         SidebarBackground = sidebarBg,
         ContentArea = contentArea,
+        PopupLayer = popupLayer,
+        DrawerScrim = drawerScrim,
+        MenuButton = menuButton,
         Mini = mini,
         Title = title,
         Version = version,
@@ -3589,6 +3919,9 @@ function AzothUI:CreateWindow(data)
         LastPosition = main.Position,
         LastSize = main.Size,
         PreviousVisibleState = true,
+        Responsive = data.Responsive == true,
+        SidebarCollapsed = false,
+        ResponsiveRows = {},
         ConfigName = data.ConfigName or (type(data.Config) == "table" and data.Config.Name) or "Default",
         AutoSaveConfig = type(data.Config) == "table" and data.Config.AutoSave == true,
         ConfigFireCallbacks = type(data.Config) == "table" and data.Config.FireCallbacks == true,
@@ -3612,6 +3945,22 @@ function AzothUI:CreateWindow(data)
     })
 
     local miniDragState = MakeMiniDraggable(mini, mini, window.Connections)
+
+    table.insert(window.Connections, menuButton.MouseButton1Click:Connect(function()
+        window:ToggleSidebarDrawer(not drawerScrim.Visible)
+    end))
+    table.insert(window.Connections, drawerScrim.MouseButton1Click:Connect(function()
+        window:ToggleSidebarDrawer(false)
+    end))
+    if window.Responsive then
+        local camera = workspace.CurrentCamera
+        if camera then
+            table.insert(window.Connections, camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+                window:RefreshResponsive()
+            end))
+        end
+        task.defer(function() window:RefreshResponsive() end)
+    end
 
     --==================================================
     -- RESIZE GRIP
@@ -3702,20 +4051,23 @@ function AzothUI:CreateWindow(data)
 
         local delta = input.Position - resizeStart
 
+        local mobileResize = window.Responsive and getViewportSize().X <= Config.Window.ResponsiveBreakpoint
         local newWidth = math.clamp(
             startingSize.X + delta.X,
-            Config.Window.MinWidth,
+            mobileResize and Config.Window.MobileMinWidth or Config.Window.MinWidth,
             Config.Window.MaxWidth
         )
 
         local newHeight = math.clamp(
             startingSize.Y + delta.Y,
-            Config.Window.MinHeight,
+            mobileResize and Config.Window.MobileMinHeight or Config.Window.MinHeight,
             Config.Window.MaxHeight
         )
 
         main.Size = UDim2.fromOffset(newWidth, newHeight)
         window.LastSize = main.Size
+        window.ResponsiveBaseSize = Vector2.new(newWidth, newHeight)
+        window:RefreshResponsiveLayout()
     end))
 
     table.insert(window.Connections, UserInputService.InputEnded:Connect(function(input)
