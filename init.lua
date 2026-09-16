@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.7.0
+-- AZOTHUI v1.7.1
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.7.0"
+AzothUI.Version = "1.7.1"
 
 --==================================================
 -- SERVICES
@@ -60,6 +60,10 @@ local Config = {
 Config.ThemeName = "Azoth"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
+
+-- v1.7.1:
+-- * Fixed dropdown opening clicks being treated as outside clicks.
+-- * Fixed responsive centering with the window's 0.5 AnchorPoint.
 
 -- v1.7.0:
 -- * Added opt-in responsive window sizing and a mobile sidebar drawer.
@@ -1593,6 +1597,7 @@ function TabMethods:AddDropdown(data)
         Padding = UDim.new(0, 2),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, menu)
+    local menuOpenedAt = 0
 
     local function positionMenu()
         local menuHeight = math.min(#values * 32 + 8, 180)
@@ -1642,6 +1647,7 @@ function TabMethods:AddDropdown(data)
 
         if menu.Visible then
             closeWindowPopups(self.Window, menu)
+            menuOpenedAt = os.clock()
             menu.Size = UDim2.fromOffset(
                 190,
                 math.min(#values * 32 + 8, 180)
@@ -1655,6 +1661,13 @@ function TabMethods:AddDropdown(data)
     -- Close the popup when clicking anywhere outside the selector/menu.
     table.insert(self.Window.Connections, UserInputService.InputBegan:Connect(function(input)
         if not menu.Visible then
+            return
+        end
+
+        -- Some executors dispatch MouseButton1Click before the global
+        -- InputBegan listener. Ignore that opening click so the menu does
+        -- not immediately close itself.
+        if os.clock() - menuOpenedAt < 0.12 then
             return
         end
 
@@ -2081,6 +2094,7 @@ function TabMethods:AddMultiDropdown(data)
         Padding = UDim.new(0, 2),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, menu)
+    local menuOpenedAt = 0
 
     local function updateText()
         local result = {}
@@ -2149,6 +2163,7 @@ function TabMethods:AddMultiDropdown(data)
         menu.Visible = not menu.Visible
         if menu.Visible then
             closeWindowPopups(self.Window, menu)
+            menuOpenedAt = os.clock()
             rebuild()
             menu.Size = UDim2.fromOffset(190, math.min(#values * 32 + 8, 180))
             positionMenu()
@@ -2159,6 +2174,10 @@ function TabMethods:AddMultiDropdown(data)
 
     table.insert(self.Window.Connections, UserInputService.InputBegan:Connect(function(input)
         if not menu.Visible then
+            return
+        end
+
+        if os.clock() - menuOpenedAt < 0.12 then
             return
         end
 
@@ -2419,7 +2438,10 @@ function WindowMethods:RefreshResponsive()
     local height = math.min(math.clamp(desiredH, minH, Config.Window.MaxHeight), math.max(1, viewport.Y - margin * 2))
     self.Main.Size = UDim2.fromOffset(width, height)
     self.LastSize = self.Main.Size
-    self.Main.Position = UDim2.fromOffset(math.max(margin, (viewport.X - width) / 2), math.max(margin, (viewport.Y - height) / 2))
+    -- Main uses AnchorPoint(0.5, 0.5), so its position must be the viewport
+    -- centre. Using the top-left coordinate here was what pushed responsive
+    -- windows into the upper-left corner on some desktop viewports.
+    self.Main.Position = UDim2.fromOffset(viewport.X / 2, viewport.Y / 2)
     self.LastPosition = self.Main.Position
     self:SetSidebarCollapsed(mobile)
     self:RefreshResponsiveLayout()
