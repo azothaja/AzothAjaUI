@@ -1,12 +1,12 @@
 --==================================================
--- AZOTHUI v1.7.1
+-- AZOTHUI v1.7.2
 -- Compatibility-focused UI Framework
 --==================================================
 
 local AzothUI = {}
 
 AzothUI.Name = "AzothUI"
-AzothUI.Version = "1.7.1"
+AzothUI.Version = "1.7.2"
 
 --==================================================
 -- SERVICES
@@ -60,6 +60,10 @@ local Config = {
 Config.ThemeName = "Azoth"
 AzothUI.Config = Config
 AzothUI.Theme = Config.ThemeName
+
+-- v1.7.2:
+-- * Removed unreliable global outside-click detection from popup menus.
+-- * Dropdowns now remain open while moving between their options.
 
 -- v1.7.1:
 -- * Fixed dropdown opening clicks being treated as outside clicks.
@@ -1597,7 +1601,6 @@ function TabMethods:AddDropdown(data)
         Padding = UDim.new(0, 2),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, menu)
-    local menuOpenedAt = 0
 
     local function positionMenu()
         local menuHeight = math.min(#values * 32 + 8, 180)
@@ -1647,7 +1650,6 @@ function TabMethods:AddDropdown(data)
 
         if menu.Visible then
             closeWindowPopups(self.Window, menu)
-            menuOpenedAt = os.clock()
             menu.Size = UDim2.fromOffset(
                 190,
                 math.min(#values * 32 + 8, 180)
@@ -1658,39 +1660,11 @@ function TabMethods:AddDropdown(data)
         end
     end)
 
-    -- Close the popup when clicking anywhere outside the selector/menu.
-    table.insert(self.Window.Connections, UserInputService.InputBegan:Connect(function(input)
-        if not menu.Visible then
-            return
-        end
-
-        -- Some executors dispatch MouseButton1Click before the global
-        -- InputBegan listener. Ignore that opening click so the menu does
-        -- not immediately close itself.
-        if os.clock() - menuOpenedAt < 0.12 then
-            return
-        end
-
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
-            return
-        end
-
-        local p = input.Position
-        local menuPos = menu.AbsolutePosition
-        local menuEnd = menuPos + menu.AbsoluteSize
-        local selectorPos = selector.AbsolutePosition
-        local selectorEnd = selectorPos + selector.AbsoluteSize
-
-        local insideMenu = p.X >= menuPos.X and p.X <= menuEnd.X
-            and p.Y >= menuPos.Y and p.Y <= menuEnd.Y
-        local insideSelector = p.X >= selectorPos.X and p.X <= selectorEnd.X
-            and p.Y >= selectorPos.Y and p.Y <= selectorEnd.Y
-
-        if not insideMenu and not insideSelector then
-            menu.Visible = false
-            menu.Size = UDim2.fromOffset(190, 0)
-        end
-    end))
+    -- Do not use UserInputService.InputBegan for outside-click closing here.
+    -- Several executors report option-hover/touch movement as a global input,
+    -- which made menus close before Pathfinding/Features could be selected.
+    -- The selector toggles this menu; choosing an option or opening another
+    -- popup also closes it deterministically.
 
     local control = {
         Instance = row,
@@ -2094,7 +2068,6 @@ function TabMethods:AddMultiDropdown(data)
         Padding = UDim.new(0, 2),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, menu)
-    local menuOpenedAt = 0
 
     local function updateText()
         local result = {}
@@ -2163,7 +2136,6 @@ function TabMethods:AddMultiDropdown(data)
         menu.Visible = not menu.Visible
         if menu.Visible then
             closeWindowPopups(self.Window, menu)
-            menuOpenedAt = os.clock()
             rebuild()
             menu.Size = UDim2.fromOffset(190, math.min(#values * 32 + 8, 180))
             positionMenu()
@@ -2172,29 +2144,9 @@ function TabMethods:AddMultiDropdown(data)
         end
     end)
 
-    table.insert(self.Window.Connections, UserInputService.InputBegan:Connect(function(input)
-        if not menu.Visible then
-            return
-        end
-
-        if os.clock() - menuOpenedAt < 0.12 then
-            return
-        end
-
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            local p = input.Position
-            local a = menu.AbsolutePosition
-            local b = a + menu.AbsoluteSize
-            local s = selector.AbsolutePosition
-            local e = s + selector.AbsoluteSize
-
-            if (p.X < a.X or p.X > b.X or p.Y < a.Y or p.Y > b.Y)
-            and (p.X < s.X or p.X > e.X or p.Y < s.Y or p.Y > e.Y) then
-                menu.Visible = false
-                menu.Size = UDim2.fromOffset(190, 0)
-            end
-        end
-    end))
+    -- Keep this menu open until the selector is toggled, an option is picked,
+    -- or another shared PopupLayer menu is opened. Global outside-click
+    -- detection was unreliable in executor input pipelines.
 
     updateText()
 
